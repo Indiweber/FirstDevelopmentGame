@@ -378,7 +378,8 @@ MonoBehaviour:
   activeColor: {r: 0.2, g: 0.8, b: 0.2, a: 1}
   inactiveColor: {r: 0.8, g: 0.2, b: 0.2, a: 1}
   buttonText: {fileID: 0}
-  playerObject: {fileID: 567063099}
+  playerObject: {fileID: 629302255}
+  enableDebugLogs: 1
 --- !u!114 &567063102
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -723,15 +724,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3c46fb4a009e9964f801133b618f701b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  useVirtualInput: 0
   useJoystick: 0
-  useKeyboard: 0
-  useVirtualInput: 1
+  priorityInput: 1
+  enableDebugLogs: 1
   joystickController: {fileID: 570712529}
-  joystickDeadZone: 0.1
-  horizontalAxis: Horizontal
-  verticalAxis: Vertical
-  keyboardSensitivity: 1
-  priorityInput: 2
 --- !u!114 &629302262
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -848,6 +845,10 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 8
   maxDetectableEnemies: 20
+  detectionInterval: 0.5
+  debugDetection: 0
+  maxCacheTime: 5
+  cacheRefreshThreshold: 0.5
 --- !u!114 &629302267
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -863,8 +864,13 @@ MonoBehaviour:
   autoModeEnabled: 1
   targetUpdateInterval: 0.8
   minDistanceToEnemy: 1.5
+  maxSearchDistance: 10
+  enemyLayer:
+    serializedVersion: 2
+    m_Bits: 8
   useGlobalSearch: 1
   globalSearchInterval: 2
+  joystickObject: {fileID: 1113216620}
   drawDebugInfo: 1
 --- !u!1 &705507993
 GameObject:
