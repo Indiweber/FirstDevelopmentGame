@@ -61,33 +61,44 @@ public class AutoCombat : MonoBehaviour
 
     private void Awake()
     {
+        // 필수 컴포넌트 가져오기
+        enemyDetector = GetComponent<EnemyDetector>();
         characterMovement = GetComponent<CharacterMovement>();
+        animator = GetComponent<Animator>();
         
-        if (characterMovement == null)
-        {
-            Debug.LogError("CharacterMovement를 찾을 수 없습니다!");
-            enabled = false;
-            return;
-        }
-        
-        // 이동 속도를 캐릭터 설정에서 가져옴
-        if (characterMovement.Settings != null)
-        {
-            targetUpdateInterval = characterMovement.Settings.moveSpeed;
-        }
-        
+        // InputManager는 같은 GameObject에서 찾기
         inputManager = GetComponent<InputManager>();
+        
+        // 없다면 부모에서 찾기
+        if (inputManager == null)
+        {
+            inputManager = GetComponentInParent<InputManager>();
+        }
+        
+        // 그래도 없다면 자식에서 찾기
+        if (inputManager == null)
+        {
+            inputManager = GetComponentInChildren<InputManager>();
+        }
+        
         if (inputManager == null)
         {
             Debug.LogError("InputManager를 찾을 수 없습니다!");
         }
         
-        enemyDetector = GetComponent<EnemyDetector>();
+        // 컴포넌트 null 체크
         if (enemyDetector == null)
         {
-            Debug.LogError("EnemyDetector를 찾을 수 없습니다!");
-            enabled = false;
+            Debug.LogError("EnemyDetector 컴포넌트를 찾을 수 없습니다!");
         }
+        
+        if (characterMovement == null)
+        {
+            Debug.LogError("CharacterMovement 컴포넌트를 찾을 수 없습니다!");
+        }
+        
+        // 초기 상태 설정
+        lastPosition = transform.position;
     }
 
     private void Start()
@@ -189,49 +200,38 @@ public class AutoCombat : MonoBehaviour
         float distanceToTarget = directionToTarget.magnitude;
         
         // 공격 범위 내에 있는지 확인
-        bool inAttackRange = distanceToTarget <= minDistanceToEnemy;
-        
-        if (inAttackRange)
+        if (distanceToTarget <= minDistanceToEnemy)
         {
-            // 공격 범위 내에 있으면 이동 중지
+            // 공격 범위 내에서는 이동 중지
             targetDirection = Vector2.zero;
+            
+            // 공격 애니메이션 재생
+            if (animator != null)
+            {
+                animator.SetBool("Attack", true);
+                animator.SetBool("Walk", false);  // 걷기 애니메이션 중지
+            }
             
             if (drawDebugInfo)
             {
-                Debug.Log($"자동 전투: 공격 범위 내 ({distanceToTarget:F2}m), 이동 중지");
+                Debug.Log($"공격 범위 내 도달: 거리={distanceToTarget:F2}");
             }
-            
-            // 여기에 공격 로직 추가 (나중에 구현)
         }
         else
         {
-            // 이동 방향 계산 (x,z 평면에서)
-            directionToTarget.y = 0;
-            directionToTarget.Normalize();
-            
-            // 방향을 조이스틱 입력으로 변환 (x: 좌우, y: 상하)
-            float inputX = directionToTarget.x;
-            float inputY = directionToTarget.z;  // 반전 제거
-            
-            // 디버그 로그 추가
-            if (drawDebugInfo)
+            // 공격 애니메이션 중지
+            if (animator != null)
             {
-                Debug.Log($"자동 전투 이동 계산: directionToTarget={directionToTarget}, inputX={inputX}, inputY={inputY}");
+                animator.SetBool("Attack", false);
             }
             
-            // 새로운 목표 방향 설정
-            targetDirection = new Vector2(inputX, inputY).normalized;
+            // 타겟을 향해 이동
+            Vector3 normalizedDirection = directionToTarget.normalized;
+            targetDirection = new Vector2(normalizedDirection.x, normalizedDirection.z);
             
-            // 이동 상태 확인 (비활성화)
-            Vector3 movementDelta = characterMovement.GetPositionDelta();
-            float moveDistance = movementDelta.magnitude;
-            
-            // 이동 중이면 타이머 초기화 (항상 타이머 초기화하여 타겟 리셋 방지)
-            inactivityTimer = 0f;
-            
-            if (drawDebugInfo && targetCheckTimer == 0f)
+            if (drawDebugInfo)
             {
-                Debug.Log($"자동 전투: 타겟으로 이동 중 ({distanceToTarget:F2}m), 입력: ({inputX:F2}, {inputY:F2})");
+                Debug.Log($"타겟으로 이동 중: 거리={distanceToTarget:F2}, 방향={targetDirection}");
             }
         }
     }
@@ -427,13 +427,21 @@ public class AutoCombat : MonoBehaviour
         
         autoModeEnabled = enabled;
         
-        // 입력 매니저 확인 및 설정
+        // InputManager가 없다면 다시 찾기 시도
         if (inputManager == null)
         {
-            Debug.LogError("InputManager가 없어 자동 모드를 설정할 수 없습니다!");
             inputManager = GetComponent<InputManager>();
             if (inputManager == null)
             {
+                inputManager = GetComponentInParent<InputManager>();
+            }
+            if (inputManager == null)
+            {
+                inputManager = GetComponentInChildren<InputManager>();
+            }
+            if (inputManager == null)
+            {
+                Debug.LogError("InputManager가 없어 자동 모드를 설정할 수 없습니다!");
                 return;
             }
         }
@@ -448,7 +456,10 @@ public class AutoCombat : MonoBehaviour
         }
         
         // 디버그 로그
-        Debug.Log($"자동 모드 {(enabled ? "활성화" : "비활성화")}, 입력 우선순위: {inputManager.GetPriorityInput()}");
+        if (drawDebugInfo)
+        {
+            Debug.Log($"자동 모드 {(enabled ? "활성화" : "비활성화")}, 입력 우선순위: {inputManager.GetPriorityInput()}");
+        }
         
         // 조이스틱 UI 토글
         ToggleJoystickVisibility(!enabled);

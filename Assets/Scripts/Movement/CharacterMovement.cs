@@ -101,6 +101,12 @@ public class CharacterMovement : MonoBehaviour
         
         Vector2 input = inputManager.GetMovementInput();
         
+        // 디버그 로그 추가
+        if (input.magnitude > MOVEMENT_THRESHOLD)
+        {
+            Debug.Log($"이동 입력 감지: input={input}, magnitude={input.magnitude:F2}");
+        }
+        
         // 입력 변화가 임계값보다 작으면 이전 입력 사용 (작은 떨림 방지)
         if (Vector2.Distance(input, lastInput) < INPUT_CHANGE_THRESHOLD && input.magnitude > 0)
         {
@@ -113,33 +119,34 @@ public class CharacterMovement : MonoBehaviour
         
         if (input.magnitude > MOVEMENT_THRESHOLD)
         {
-            // 이동 방향 계산 - JoystickController에서 이미 y축을 반전했으므로 여기서는 그대로 사용
+            // 이동 방향 계산 (z축이 앞뒤 방향)
             Vector3 moveDirection = new Vector3(input.x, 0, input.y).normalized;
             currentMoveDirection = moveDirection;
             
-            // 목표 속도 설정 - 이동 속도 확인
+            // 목표 속도 설정
             float currentSpeed = settings != null ? settings.moveSpeed : fallbackMoveSpeed;
             targetVelocity = moveDirection * currentSpeed;
             
-            // 디버그 로그
-            Debug.Log($"이동 방향: {moveDirection}, 속도: {currentSpeed}, 입력: {input}");
-            
-            // X 입력값에 따라 즉시 회전
+            // X 입력값에 따라 회전
             UpdateRotation(input.x);
+            
+            // 디버그 로그
+            Debug.Log($"캐릭터 이동: direction={moveDirection}, speed={currentSpeed}, velocity={targetVelocity}");
         }
         else
         {
             targetVelocity = Vector3.zero;
         }
         
-        // 보간 없이 속도 직접 적용 (속도 문제 해결)
-        rb.velocity = targetVelocity;
+        // 속도 직접 적용 (y축 속도는 유지)
+        rb.velocity = new Vector3(targetVelocity.x, rb.velocity.y, targetVelocity.z);
     }
     
     private void UpdateAnimationState(float deltaMovement)
     {
-        // 실제 위치 변화량을 기준으로 이동 여부 판단 (임계값 낮춤)
-        bool isCurrentlyMoving = deltaMovement > 0.001f; 
+        // 실제 위치 변화량이나 입력 상태를 기준으로 이동 여부 판단
+        bool isCurrentlyMoving = deltaMovement > 0.001f || 
+                               (inputManager != null && inputManager.GetMovementInput().magnitude > MOVEMENT_THRESHOLD);
         
         if (isCurrentlyMoving != isMoving)
         {

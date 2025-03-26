@@ -584,6 +584,12 @@ MonoBehaviour:
   background: {fileID: 1319240322}
   handle: {fileID: 1113216621}
   joystickRadius: 50
+  handleRange: 1
+  deadZone: 0
+  snapX: 0
+  snapY: 0
+  hideOnRelease: 1
+  enableDebugLogs: 0
 --- !u!1 &629302255
 GameObject:
   m_ObjectHideFlags: 0
@@ -690,7 +696,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   walkParameterName: Walk
+  attackParameterName: Attack
   characterMovement: {fileID: 629302262}
+  enableDebugLogs: 0
 --- !u!95 &629302260
 Animator:
   serializedVersion: 5
@@ -724,11 +732,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3c46fb4a009e9964f801133b618f701b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  enableDebugLogs: 1
+  priorityInput: 1
   useVirtualInput: 0
   useJoystick: 0
-  priorityInput: 1
-  enableDebugLogs: 1
   joystickController: {fileID: 570712529}
+  joystickObject: {fileID: 0}
+  attackButtonObject: {fileID: 0}
 --- !u!114 &629302262
 MonoBehaviour:
   m_ObjectHideFlags: 0

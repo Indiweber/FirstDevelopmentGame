@@ -1,10 +1,5 @@
 using UnityEngine;
-
-// 조이스틱 입력 인터페이스 정의
-public interface IJoystickInput
-{
-    Vector2 GetJoystickInput();
-}
+using System.Collections.Generic;
 
 public enum InputType
 {
@@ -12,37 +7,58 @@ public enum InputType
     Virtual
 }
 
-public class InputManager : MonoBehaviour, IVirtualInputReceiver
+public class InputManager : MonoBehaviour, IVirtualInputReceiver, IJoystickInput
 {
-    [Header("입력 설정")]
-    [SerializeField] private bool useVirtualInput = false;  // 기본값을 false로 변경
-    [SerializeField] private bool useJoystick = true;      // 조이스틱 사용 여부
-    [SerializeField] private InputType priorityInput = InputType.Joystick;  // 우선순위 입력 방식
-    [SerializeField] private bool enableDebugLogs = false;  // 디버그 로그 활성화 여부
-
+    [Header("디버그")]
+    [SerializeField] private bool enableDebugLogs = false;
+    
+    [Header("입력 우선순위")]
+    [SerializeField] private InputType priorityInput = InputType.Joystick;
+    [SerializeField] private bool useVirtualInput = true;
+    [SerializeField] private bool useJoystick = true;
+    
     [Header("조이스틱 참조")]
     [SerializeField] private JoystickController joystickController;
-
+    
+    [Header("추가 참조")]
+    [SerializeField] private GameObject joystickObject;
+    [SerializeField] private GameObject attackButtonObject;
+    
     private Vector2 virtualInput = Vector2.zero;
     private bool _virtualInputEnabled = false;
-
+    private bool joystickEnabled = true;
+    private CombatController combatController;
+    
     private void Awake()
     {
         // 조이스틱 컨트롤러가 없으면 찾기
         if (joystickController == null)
         {
             joystickController = FindObjectOfType<JoystickController>();
-            if (joystickController == null)
+            if (joystickController == null && enableDebugLogs)
             {
-                Debug.LogError("JoystickController를 찾을 수 없습니다!");
+                Debug.LogError("조이스틱 컨트롤러를 찾을 수 없습니다!");
             }
         }
-
-        // 기본 설정 - 가상 입력 비활성화, 조이스틱 우선순위
-        useVirtualInput = false;
+        
+        combatController = GetComponent<CombatController>();
+        if (combatController == null && transform.parent != null)
+        {
+            combatController = transform.parent.GetComponent<CombatController>();
+        }
+        
+        // 가상 입력 초기화
+        virtualInput = Vector2.zero;
         _virtualInputEnabled = false;
+        
+        // 조이스틱 사용 설정
         useJoystick = true;
         priorityInput = InputType.Joystick;
+        
+        if (enableDebugLogs)
+        {
+            Debug.Log($"InputManager 초기화 - 조이스틱: {joystickController != null}, useJoystick: {useJoystick}");
+        }
     }
 
     private void Start()
@@ -74,86 +90,86 @@ public class InputManager : MonoBehaviour, IVirtualInputReceiver
         }
     }
 
-    // 가상 입력 설정 (IVirtualInputReceiver 인터페이스 구현)
-    public void SetVirtualInput(Vector2 input)
-    {
-        virtualInput = input;
-        _virtualInputEnabled = true;  // 가상 입력이 설정되면 자동으로 활성화
-        
-        // 강제로 우선순위 설정
-        if (priorityInput != InputType.Virtual && input.magnitude > 0)
-        {
-            priorityInput = InputType.Virtual;
-            Debug.Log($"[가상 입력] 우선순위 자동 변경: {priorityInput}");
-        }
-        
-        // 항상 로그 출력하도록 변경
-        Debug.Log($"[가상 입력 설정] 입력값: {input}, 크기: {input.magnitude:F3}");
-    }
-
-    // 입력 가져오기 (Player 스크립트에서 호출)
     public Vector2 GetMovementInput()
     {
-        // 우선순위에 따른 입력 선택
-        if (priorityInput == InputType.Virtual && _virtualInputEnabled)
+        // 조이스틱 입력 처리 (우선순위가 Virtual이 아닐 때)
+        if (useJoystick && joystickController != null && priorityInput != InputType.Virtual)
         {
-            // 로그 추가
-            if (virtualInput.magnitude > 0.1f)
+            Vector2 joystickInput = joystickController.GetJoystickValue();
+            if (enableDebugLogs && joystickInput.magnitude > 0.1f)
             {
-                Debug.Log($"[입력 반환] 가상 입력: {virtualInput}");
+                Debug.Log($"조이스틱 입력 감지: {joystickInput}, 크기: {joystickInput.magnitude}");
+            }
+            return joystickInput;
+        }
+        
+        // 가상 입력 처리
+        if (_virtualInputEnabled && priorityInput == InputType.Virtual)
+        {
+            if (enableDebugLogs && virtualInput.magnitude > 0.1f)
+            {
+                Debug.Log($"가상 입력 사용: {virtualInput}, 크기: {virtualInput.magnitude}");
             }
             return virtualInput;
-        }
-        else if (useJoystick && joystickController != null)
-        {
-            Vector2 joystickValue = joystickController.InputVector;
-            // 로그 추가
-            if (joystickValue.magnitude > 0.1f)
-            {
-                Debug.Log($"[입력 반환] 조이스틱 입력: {joystickValue}");
-            }
-            return joystickValue;
-        }
-
-        // 입력 없음
-        return Vector2.zero;
-    }
-    
-    // 조이스틱 입력 활성화/비활성화
-    public void SetJoystickEnabled(bool enabled)
-    {
-        useJoystick = enabled;
-        
-        if (!enabled)
-        {
-            // 조이스틱 비활성화 시 가상 입력 우선
-            _virtualInputEnabled = true;
-            priorityInput = InputType.Virtual;
         }
         
         if (enableDebugLogs)
         {
-            Debug.Log($"[조이스틱 설정] 활성화: {enabled}, 가상 입력 우선: {_virtualInputEnabled}");
+            Debug.Log($"유효한 입력 없음 - 조이스틱: {useJoystick}, 컨트롤러: {joystickController != null}, 우선순위: {priorityInput}");
         }
+        return Vector2.zero;
     }
 
-    // 입력 우선순위 설정
+    public Vector2 GetJoystickValue()
+    {
+        if (joystickController != null)
+        {
+            return joystickController.GetJoystickValue();
+        }
+        return Vector2.zero;
+    }
+
     public void SetPriorityInputType(InputType inputType)
     {
-        if (priorityInput != inputType)
+        priorityInput = inputType;
+        _virtualInputEnabled = (inputType == InputType.Virtual);
+        
+        if (enableDebugLogs)
         {
-            priorityInput = inputType;
-            
-            if (enableDebugLogs)
-            {
-                Debug.Log($"입력 우선순위 변경: {inputType}");
-            }
+            Debug.Log($"입력 우선순위 변경: {inputType}, 가상 입력 활성화: {_virtualInputEnabled}");
         }
     }
 
-    // 입력 우선순위 가져오기
     public InputType GetPriorityInput()
     {
         return priorityInput;
+    }
+
+    public void OnAttackButtonPressed()
+    {
+        if (combatController != null)
+        {
+            combatController.TryAttack();
+            
+            if (enableDebugLogs)
+            {
+                Debug.Log("공격 버튼 누름");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("CombatController를 찾을 수 없습니다.");
+        }
+    }
+
+    public void SetVirtualInput(Vector2 input)
+    {
+        virtualInput = input;
+        _virtualInputEnabled = true;
+        
+        if (enableDebugLogs && input.magnitude > 0.1f)
+        {
+            Debug.Log($"가상 입력 설정: {input}, 크기: {input.magnitude}");
+        }
     }
 } 

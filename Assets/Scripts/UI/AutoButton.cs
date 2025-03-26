@@ -52,27 +52,28 @@ public class AutoButton : MonoBehaviour
             }
         }
         
-        InitializeComponents();
-        
         // 버튼 클릭 이벤트 설정
         button.onClick.AddListener(ToggleAutoMode);
         
-        // 초기 상태 설정 - 기본값은 비활성화로 시작
+        // 초기 상태 설정
         isAutoModeActive = false;
         UpdateButtonVisual();
+    }
+    
+    private void Start()
+    {
+        // 컴포넌트 초기화
+        InitializeComponents();
         
         // 시작 시 자동 이동 모드 강제 비활성화
         if (inputManager != null && autoCombat != null)
         {
             ForceDisableAutoMode();
         }
-    }
-    
-    private void Start()
-    {
-        // 명시적으로 자동 모드를 비활성화 상태로 시작
-        isAutoModeActive = false;
-        UpdateAutoMode();
+        else
+        {
+            Debug.LogWarning("필수 컴포넌트가 없어 자동 모드를 초기화할 수 없습니다.");
+        }
     }
 
     private void Update()
@@ -93,17 +94,30 @@ public class AutoButton : MonoBehaviour
     {
         if (playerObject != null)
         {
-            Debug.Log($"플레이어 오브젝트 찾음: {playerObject.name}");
+            if (enableDebugLogs)
+            {
+                Debug.Log($"플레이어 오브젝트 찾음: {playerObject.name}");
+            }
             
             // 플레이어 컴포넌트 가져오기
             inputManager = playerObject.GetComponent<InputManager>();
             autoCombat = playerObject.GetComponent<AutoCombat>();
             
+            // InputManager가 없다면 자식이나 부모에서 찾기
+            if (inputManager == null)
+            {
+                inputManager = playerObject.GetComponentInChildren<InputManager>();
+                if (inputManager == null)
+                {
+                    inputManager = playerObject.GetComponentInParent<InputManager>();
+                }
+            }
+            
             if (inputManager == null)
             {
                 Debug.LogError($"InputManager 컴포넌트를 찾을 수 없습니다! 플레이어: {playerObject.name}");
             }
-            else
+            else if (enableDebugLogs)
             {
                 Debug.Log("InputManager 컴포넌트를 찾았습니다.");
             }
@@ -112,7 +126,7 @@ public class AutoButton : MonoBehaviour
             {
                 Debug.LogError($"AutoCombat 컴포넌트를 찾을 수 없습니다! 플레이어: {playerObject.name}");
             }
-            else
+            else if (enableDebugLogs)
             {
                 Debug.Log("AutoCombat 컴포넌트를 찾았습니다.");
             }

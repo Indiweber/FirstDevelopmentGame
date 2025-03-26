@@ -6,8 +6,12 @@ public class CharacterAnimator : MonoBehaviour
 {
     [Tooltip("애니메이션 파라미터 중 걷기 상태를 나타내는 파라미터 이름")]
     [SerializeField] private string walkParameterName = "Walk";
+    [Tooltip("애니메이션 파라미터 중 공격 상태를 나타내는 파라미터 이름")]
+    [SerializeField] private string attackParameterName = "Attack";
     
     [SerializeField] private CharacterMovement characterMovement;
+    
+    [SerializeField] private bool enableDebugLogs = false;  // 디버그 로그 기본값 false로 설정
     
     private Animator animator;
     
@@ -61,13 +65,17 @@ public class CharacterAnimator : MonoBehaviour
         // 애니메이션 파라미터 확인
         AnimatorControllerParameter[] parameters = animator.parameters;
         bool hasWalkParameter = false;
+        bool hasAttackParameter = false;
         
         foreach (var param in parameters)
         {
             if (param.name == walkParameterName && param.type == AnimatorControllerParameterType.Bool)
             {
                 hasWalkParameter = true;
-                break;
+            }
+            if (param.name == attackParameterName && param.type == AnimatorControllerParameterType.Bool)
+            {
+                hasAttackParameter = true;
             }
         }
         
@@ -75,25 +83,26 @@ public class CharacterAnimator : MonoBehaviour
         {
             Debug.LogError($"Animator에 '{walkParameterName}' Bool 파라미터가 없습니다!");
         }
+        
+        if (!hasAttackParameter)
+        {
+            Debug.LogError($"Animator에 '{attackParameterName}' Bool 파라미터가 없습니다!");
+        }
     }
     
     private void Update()
     {
-        // 이동 상태 실시간 체크
-        if (characterMovement != null)
+        // 이동 상태 실시간 체크 (디버그 로그는 조건부로만 출력)
+        if (characterMovement != null && enableDebugLogs)
         {
-            // 이동 상태 확인
             Vector3 movement = characterMovement.MovementDelta;
-            bool isMoving = movement.magnitude > 0.01f;
-            
-            // 애니메이션 상태 갱신
-            if (animator != null && animator.gameObject.activeInHierarchy)
+            if (movement.magnitude > 0.01f)  // 움직임이 있을 때만 로그 출력
             {
-                animator.SetBool(walkParameterName, isMoving);
-                
-                // 현재 애니메이션 상태 로깅
-                AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
-                Debug.Log($"캐릭터 이동: {isMoving}, 애니메이션 상태: {stateInfo.normalizedTime}, 속도: {movement.magnitude}");
+                if (animator != null && animator.gameObject.activeInHierarchy)
+                {
+                    AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
+                    Debug.Log($"캐릭터 이동 상태: 속도={movement.magnitude:F2}, 애니메이션={stateInfo.normalizedTime:F2}");
+                }
             }
         }
     }
@@ -102,8 +111,25 @@ public class CharacterAnimator : MonoBehaviour
     {
         if (animator != null && animator.gameObject.activeInHierarchy)
         {
-            animator.SetBool(walkParameterName, isMoving);
-            Debug.Log($"애니메이션 상태 변경: {isMoving}");
+            bool currentState = animator.GetBool(walkParameterName);
+            if (currentState != isMoving)
+            {
+                animator.SetBool(walkParameterName, isMoving);
+                if (enableDebugLogs)
+                {
+                    Debug.Log($"애니메이션 상태 변경: {isMoving}");
+                }
+            }
+        }
+    }
+    
+    // 공격 애니메이션을 재생하는 메서드
+    public void SetAttackAnimation(bool isAttacking)
+    {
+        if (animator != null && animator.gameObject.activeInHierarchy)
+        {
+            animator.SetBool(attackParameterName, isAttacking);
+            Debug.Log($"공격 애니메이션 상태 변경: {isAttacking}");
         }
     }
 } 
