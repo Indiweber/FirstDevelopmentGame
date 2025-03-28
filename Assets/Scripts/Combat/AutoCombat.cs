@@ -1,9 +1,9 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 
 [RequireComponent(typeof(CharacterMovement))]
-[RequireComponent(typeof(EnemyDetector))]
 public class AutoCombat : MonoBehaviour
 {
     [Header("자동 전투 설정")]
@@ -25,14 +25,16 @@ public class AutoCombat : MonoBehaviour
     [SerializeField] private GameObject joystickObject;
 
     [Header("상태 표시")]
-    [SerializeField] private bool drawDebugInfo = false;  // 디버그 정보 비활성화
+    [SerializeField] private bool drawDebugInfo = false;  // Inspector에서 필요할 때만 활성화하도록 설정
     
-    private EnemyDetector enemyDetector;
+    [Header("컴포넌트 참조")]
+    [SerializeField] private DetectionRange detectionRange;
+    [SerializeField] private AttackRange attackRange;
+    [SerializeField] private InputManager inputManager;
+    [SerializeField] private Animator animator;
+    
     private CharacterMovement characterMovement;
-    private InputManager inputManager;
-    private Animator animator;
-    
-    private Transform currentTarget;
+    private GameObject currentTarget;
     private bool isTargetTracking = false;
     private Vector2 movementInput = Vector2.zero;
     private bool isGlobalSearching = false;
@@ -59,26 +61,38 @@ public class AutoCombat : MonoBehaviour
     
     private const float ACTIVITY_THRESHOLD = 0.1f;
 
+    private float validationTimer;
+    private float lastAttackTime;
+    private bool isAttacking;
+    private Coroutine attackDelayCoroutine;
+
+    [Header("자동 전투 설정")]
+    [SerializeField] private float validationInterval = 1f;
+    [SerializeField] private float attackAnimationDelay = 0.5f;
+
+    private Vector3 lastDebuggedPosition;
+    private Vector3 lastDebuggedTargetPosition;
+    private bool hasLoggedInitialSearch = false;
+
+    private static HashSet<GameObject> allEnemiesInWorld = new HashSet<GameObject>();
+    private static bool staticDebugEnabled = false;  // static 디버그 플래그 추가
+
     private void Awake()
     {
-        // 필수 컴포넌트 가져오기
-        enemyDetector = GetComponent<EnemyDetector>();
         characterMovement = GetComponent<CharacterMovement>();
-        animator = GetComponent<Animator>();
         
-        // InputManager는 같은 GameObject에서 찾기
-        inputManager = GetComponent<InputManager>();
-        
-        // 없다면 부모에서 찾기
-        if (inputManager == null)
+        if (detectionRange == null)
         {
-            inputManager = GetComponentInParent<InputManager>();
+            detectionRange = GetComponentInChildren<DetectionRange>();
+            if (detectionRange == null)
+                Debug.LogError("DetectionRange가 없습니다!");
         }
         
-        // 그래도 없다면 자식에서 찾기
-        if (inputManager == null)
+        if (attackRange == null)
         {
-            inputManager = GetComponentInChildren<InputManager>();
+            attackRange = GetComponentInChildren<AttackRange>();
+            if (attackRange == null)
+                Debug.LogError("AttackRange가 없습니다!");
         }
         
         if (inputManager == null)
@@ -86,32 +100,22 @@ public class AutoCombat : MonoBehaviour
             Debug.LogError("InputManager를 찾을 수 없습니다!");
         }
         
-        // 컴포넌트 null 체크
-        if (enemyDetector == null)
-        {
-            Debug.LogError("EnemyDetector 컴포넌트를 찾을 수 없습니다!");
-        }
-        
         if (characterMovement == null)
         {
             Debug.LogError("CharacterMovement 컴포넌트를 찾을 수 없습니다!");
         }
         
-        // 초기 상태 설정
         lastPosition = transform.position;
+        staticDebugEnabled = drawDebugInfo;  // 인스턴스의 디버그 설정을 static 플래그에 반영
     }
 
     private void Start()
     {
-        // 필요한 컴포넌트 찾기
-        animator = GetComponent<Animator>();
-        
         if (inputManager == null)
         {
             Debug.LogError("InputManager를 찾을 수 없습니다! 자동 전투 기능이 작동하지 않을 수 있습니다.");
         }
         
-        // 조이스틱 오브젝트가 지정되지 않았다면 찾기
         if (joystickObject == null)
         {
             joystickObject = GameObject.FindGameObjectWithTag("Joystick");
@@ -121,19 +125,22 @@ public class AutoCombat : MonoBehaviour
             }
         }
         
-        // 마지막 위치 초기화
         lastPosition = transform.position;
         inactivityTimer = 0f;
         
-        // 시작 시 자동 모드 비활성화
-        SetAutoMode(false);
-        
-        // 타겟 체크 타이머 초기화
         targetCheckTimer = targetUpdateInterval;
+        
+        // 시작할 때 현재 씬의 모든 적을 등록
+        GameObject[] existingEnemies = GameObject.FindGameObjectsWithTag("Enemy");
+        foreach (GameObject enemy in existingEnemies)
+        {
+            RegisterEnemy(enemy);
+        }
         
         if (drawDebugInfo)
         {
             Debug.Log("AutoCombat 초기화 완료");
+            Debug.Log($"[시작] 등록된 적 수: {allEnemiesInWorld.Count}");
         }
     }
     
@@ -141,75 +148,43 @@ public class AutoCombat : MonoBehaviour
     {
         if (!autoModeEnabled) return;
         
-        // 타이머 업데이트
         targetCheckTimer += Time.deltaTime;
-        
-        // 정기적으로 적 탐색 및 타겟 업데이트
         if (targetCheckTimer >= targetUpdateInterval)
         {
             targetCheckTimer = 0f;
-            
-            // 타겟 업데이트 로직 실행
             UpdateTarget();
-            
-            // 로그 메시지 추가
-            if (drawDebugInfo)
+        }
+        
+        if (isGlobalSearching)
+        {
+            globalSearchTimer += Time.deltaTime;
+            if (globalSearchTimer >= globalSearchInterval)
             {
-                Debug.Log($"자동 전투 타겟 체크: 현재 타겟={currentTarget?.name ?? "없음"}");
+                globalSearchTimer = 0f;
+                CheckForNearbyEnemiesDuringGlobalSearch();
             }
         }
         
-        // 타겟이 있다면 이동 및 공격 처리
-        if (currentTarget != null)
-        {
-            ProcessMovementTowardsTarget();
-        }
-        else
-        {
-            // 타겟이 없을 때는 이동 입력 부드럽게 줄임
-            targetDirection = Vector2.zero;
-        }
-        
-        // 부드러운 방향 전환 적용
-        smoothedDirection = Vector2.SmoothDamp(
-            smoothedDirection, 
-            targetDirection, 
-            ref directionSmoothVelocity, 
-            directionSmoothTime
-        );
-        
-        // 부드러운 입력을 InputManager에 전달
-        if (inputManager != null)
-        {
-            inputManager.SetVirtualInput(smoothedDirection);
-            
-            if (drawDebugInfo && smoothedDirection.magnitude > 0.1f)
-            {
-                Debug.Log($"가상 입력 전달: {smoothedDirection}, 크기: {smoothedDirection.magnitude:F2}");
-            }
-        }
+        UpdateTargetPosition();
+        UpdateMovement();
     }
     
     private void ProcessMovementTowardsTarget()
     {
         if (currentTarget == null) return;
         
-        // 타겟과의 거리 계산
-        Vector3 targetPosition = currentTarget.position;
+        Vector3 targetPosition = currentTarget.transform.position;
         Vector3 directionToTarget = targetPosition - transform.position;
         float distanceToTarget = directionToTarget.magnitude;
         
-        // 공격 범위 내에 있는지 확인
         if (distanceToTarget <= minDistanceToEnemy)
         {
-            // 공격 범위 내에서는 이동 중지
             targetDirection = Vector2.zero;
             
-            // 공격 애니메이션 재생
             if (animator != null)
             {
                 animator.SetBool("Attack", true);
-                animator.SetBool("Walk", false);  // 걷기 애니메이션 중지
+                animator.SetBool("Walk", false);
             }
             
             if (drawDebugInfo)
@@ -219,13 +194,11 @@ public class AutoCombat : MonoBehaviour
         }
         else
         {
-            // 공격 애니메이션 중지
             if (animator != null)
             {
                 animator.SetBool("Attack", false);
             }
             
-            // 타겟을 향해 이동
             Vector3 normalizedDirection = directionToTarget.normalized;
             targetDirection = new Vector2(normalizedDirection.x, normalizedDirection.z);
             
@@ -238,37 +211,44 @@ public class AutoCombat : MonoBehaviour
     
     private void CheckForNearbyEnemiesDuringGlobalSearch()
     {
-        // 전역 탐색 중에는 탐지하지 않도록 변경
-        if (!isGlobalSearching || currentTarget == null) return;
-        
-        // 현재 타겟으로 이동 중인지 확인
-        float distanceToTarget = Vector3.Distance(transform.position, targetPosition);
-        
-        // 이미 타겟에 충분히 가까워졌으면 탐지 중단
-        if (distanceToTarget < maxSearchDistance * 0.5f) return;
-        
-        // 일정 시간마다 주변에 적이 있는지 다시 확인
-        enemyDetector.DetectEnemies();
-        Transform nearbyEnemy = enemyDetector.NearestEnemy;
-        
-        if (nearbyEnemy != null)
+        if (allEnemiesInWorld.Count == 0)
         {
-            int nearbyEnemyID = nearbyEnemy.GetInstanceID();
-            // 현재 타겟과 동일한 적이면 무시
-            if (nearbyEnemyID == currentTargetID) return;
-            
-            // 새로 감지된 적이 현재 타겟보다 가까우면 타겟 변경
-            float distanceToNearbyEnemy = Vector3.Distance(transform.position, nearbyEnemy.position);
-            if (distanceToNearbyEnemy < distanceToTarget * 0.7f)
+            if (drawDebugInfo)
             {
-                isGlobalSearching = false;
-                SetNewTarget(nearbyEnemy);
-                
-                if (drawDebugInfo)
-                {
-                    Debug.Log($"전역 탐색 중 더 가까운 적 발견: {currentTarget.name}, 거리: {distanceToNearbyEnemy:F2}");
-                }
+                Debug.Log("[전역 탐색] 월드에 적이 없습니다.");
             }
+            return;
+        }
+
+        GameObject nearestEnemy = null;
+        float nearestDistance = float.MaxValue;
+        Vector3 currentPos = transform.position;
+
+        foreach (GameObject enemy in allEnemiesInWorld)
+        {
+            if (enemy == null) continue;
+            
+            float distance = Vector3.Distance(currentPos, enemy.transform.position);
+            if (distance < nearestDistance)
+            {
+                nearestDistance = distance;
+                nearestEnemy = enemy;
+            }
+        }
+
+        if (nearestEnemy != null)
+        {
+            currentTarget = nearestEnemy;
+            Vector3 direction = (nearestEnemy.transform.position - currentPos);
+            direction.y = 0;
+            Vector2 input = new Vector2(direction.x, direction.z).normalized;
+            
+            if (drawDebugInfo)
+            {
+                Debug.Log($"[전역 탐색] 가장 가까운 적 발견: {nearestEnemy.name}, 거리: {nearestDistance:F2}, 입력: {input}");
+            }
+            
+            inputManager?.SetVirtualInput(input);
         }
     }
     
@@ -276,57 +256,30 @@ public class AutoCombat : MonoBehaviour
     {
         if (currentTarget != null)
         {
-            targetPosition = currentTarget.position;
+            targetPosition = currentTarget.transform.position;
         }
     }
     
-    private void SetNewTarget(Transform target)
+    private void SetNewTarget(GameObject target)
     {
         if (target == null) return;
         
-        // 동일한 타겟인지 확인
-        int targetID = target.GetInstanceID();
-        if (targetID == currentTargetID) return;
-        
         currentTarget = target;
-        currentTargetID = targetID;
         isTargetTracking = true;
         
-        // 타겟 위치 초기화
-        targetPosition = currentTarget.position;
+        targetPosition = target.transform.position;
         targetPositionUpdateTimer = 0f;
         
-        // 적을 찾았으므로 계속해서 탐지할 필요 없음
-        if (enemyDetector != null)
-        {
-            enemyDetector.SetActiveSearch(false);
-        }
-        
-        if (drawDebugInfo)
-        {
-            Debug.Log($"새로운 타겟 설정: {currentTarget.name}");
-        }
-        
-        // 비활성 타이머 리셋
         inactivityTimer = 0f;
     }
     
-    // 타겟 및 상태 리셋
     private void ResetTarget()
     {
         currentTarget = null;
-        currentTargetID = -1;
         isTargetTracking = false;
-        isGlobalSearching = false;
-        targetCheckTimer = 0f; // 즉시 새 타겟 검색
+        targetCheckTimer = 0f;
         globalSearchTimer = 0f;
         StopMovement();
-        
-        // 타겟 리셋 시 적 탐지 활성화
-        if (enemyDetector != null)
-        {
-            enemyDetector.SetActiveSearch(true);
-        }
         
         if (drawDebugInfo)
         {
@@ -336,79 +289,83 @@ public class AutoCombat : MonoBehaviour
     
     private void UpdateTarget()
     {
-        // 이미 타겟 추적 중이면 새 타겟 검색 안함
-        if (isTargetTracking && currentTarget != null) return;
+        if (isTargetTracking && currentTarget != null && currentTarget.activeInHierarchy) return;
         
-        // 일반 감지 범위 내에서 적 찾기
-        if (enemyDetector != null)
+        var detectedEnemiesCopy = new HashSet<GameObject>(detectionRange.GetDetectedEnemies());
+        if (detectedEnemiesCopy.Count > 0)
         {
-            // 적 탐지 활성화
-            enemyDetector.SetActiveSearch(true);
-            // 적 탐지 강제 실행
-            enemyDetector.DetectEnemies();
-            Transform nearestEnemy = enemyDetector.NearestEnemy;
-            
-            if (nearestEnemy != null)
-            {
-                // 감지 범위 내에서 적을 찾음
-                isGlobalSearching = false;
-                SetNewTarget(nearestEnemy);
-            }
-            else if (useGlobalSearch && !isGlobalSearching)
-            {
-                // 감지 범위 내에 적이 없고 전역 탐색이 활성화된 경우
-                FindEnemyGlobally();
-            }
-            else if (!useGlobalSearch)
-            {
-                // 전역 탐색을 사용하지 않는 경우 타겟 해제
-                if (currentTarget != null && drawDebugInfo)
-                {
-                    Debug.Log("타겟을 놓쳤습니다. 새 타겟을 찾는 중...");
-                }
-                
-                ResetTarget();
-            }
-        }
-    }
-    
-    // 전역 탐색으로 가장 가까운 적을 찾는 메서드
-    private void FindEnemyGlobally()
-    {
-        Transform globalEnemy = enemyDetector.FindNearestEnemyInWorld();
-        
-        if (globalEnemy != null)
-        {
-            SetNewTarget(globalEnemy);
-            isGlobalSearching = true;
-            globalSearchTimer = 0f;
-            
-            // 탐지 중지 (전역 탐색 중에는 필요 없음)
-            enemyDetector.SetActiveSearch(false);
+            isGlobalSearching = false;
+            GameObject firstEnemy = detectedEnemiesCopy.First();
+            SetNewTarget(firstEnemy);
             
             if (drawDebugInfo)
             {
-                Debug.Log($"전역 탐색으로 새 타겟 발견: {currentTarget.name}");
+                Debug.Log($"새로운 타겟 설정: {firstEnemy.name}");
             }
+        }
+        else if (useGlobalSearch)
+        {
+            FindEnemyGlobally();
         }
         else
         {
-            // 전체 월드에서도 적을 찾지 못함
             if (drawDebugInfo)
             {
-                Debug.Log("월드에 적이 존재하지 않습니다.");
+                Debug.Log("전역 탐색 비활성화: 새 타겟을 찾지 않습니다.");
             }
-            
             ResetTarget();
         }
     }
     
-    // 이동 중지 메서드
+    private void FindEnemyGlobally()
+    {
+        if (!isGlobalSearching)
+        {
+            isGlobalSearching = true;
+            globalSearchTimer = 0f;
+            
+            if (drawDebugInfo)
+            {
+                Debug.Log($"전역 탐색 시작: 현재 월드 내 총 적 수: {allEnemiesInWorld.Count}");
+            }
+        }
+        
+        if (allEnemiesInWorld.Count > 0)
+        {
+            // 가장 가까운 적 찾기
+            GameObject nearestEnemy = null;
+            float nearestDistance = float.MaxValue;
+            Vector3 currentPos = transform.position;
+            
+            foreach (GameObject enemy in allEnemiesInWorld)
+            {
+                if (!enemy.activeInHierarchy) continue;
+                
+                float distance = Vector3.Distance(currentPos, enemy.transform.position);
+                if (distance < nearestDistance)
+                {
+                    nearestDistance = distance;
+                    nearestEnemy = enemy;
+                }
+            }
+            
+            if (nearestEnemy != null)
+            {
+                isGlobalSearching = false;
+                SetNewTarget(nearestEnemy);
+                
+                if (drawDebugInfo)
+                {
+                    Debug.Log($"[전역 탐색] 가장 가까운 적 발견: {nearestEnemy.name}, 거리: {nearestDistance}");
+                }
+            }
+        }
+    }
+    
     private void StopMovement()
     {
         movementInput = Vector2.zero;
         
-        // 입력 매니저에 가상 입력 중지 전달
         if (inputManager != null)
         {
             inputManager.SetVirtualInput(movementInput);
@@ -420,76 +377,54 @@ public class AutoCombat : MonoBehaviour
         }
     }
     
-    // 자동 모드 설정
     public void SetAutoMode(bool enabled)
     {
-        if (autoModeEnabled == enabled) return; // 이미 같은 상태면 아무것도 하지 않음
-        
         autoModeEnabled = enabled;
-        
-        // InputManager가 없다면 다시 찾기 시도
-        if (inputManager == null)
-        {
-            inputManager = GetComponent<InputManager>();
-            if (inputManager == null)
-            {
-                inputManager = GetComponentInParent<InputManager>();
-            }
-            if (inputManager == null)
-            {
-                inputManager = GetComponentInChildren<InputManager>();
-            }
-            if (inputManager == null)
-            {
-                Debug.LogError("InputManager가 없어 자동 모드를 설정할 수 없습니다!");
-                return;
-            }
-        }
-        
-        // 자동 모드일 때는 가상 입력 우선
-        inputManager.SetPriorityInputType(enabled ? InputType.Virtual : InputType.Joystick);
-        
-        // 활성화 시 가상 입력 초기화 (임의의 작은 값으로 시작)
-        if (enabled)
-        {
-            inputManager.SetVirtualInput(new Vector2(0.01f, 0.01f));
-        }
-        
-        // 디버그 로그
-        if (drawDebugInfo)
-        {
-            Debug.Log($"자동 모드 {(enabled ? "활성화" : "비활성화")}, 입력 우선순위: {inputManager.GetPriorityInput()}");
-        }
-        
-        // 조이스틱 UI 토글
-        ToggleJoystickVisibility(!enabled);
+        hasLoggedInitialSearch = false;
+        lastDebuggedPosition = transform.position;
+        lastDebuggedTargetPosition = Vector3.zero;
         
         if (enabled)
         {
-            // 자동 모드 활성화 시
-            targetCheckTimer = 0f; // 즉시 타겟 검색 시작
-            lastPosition = transform.position;
-            inactivityTimer = 0f;
+            validationTimer = validationInterval;
+            joystickObject?.SetActive(false);
             
-            // 적 탐지 활성화
-            if (enemyDetector != null)
+            detectionRange?.ValidateDetectedEnemies();
+            attackRange?.ValidateEnemiesInRange();
+            
+            var detectedEnemies = detectionRange.GetDetectedEnemies();
+            if (detectedEnemies.Count == 0 && useGlobalSearch)
             {
-                enemyDetector.SetActiveSearch(true);
-                // 즉시 적 탐지 수행
-                enemyDetector.DetectEnemies();
+                isGlobalSearching = true;
+                globalSearchTimer = 0f;
+                if (drawDebugInfo)
+                {
+                    Debug.Log("자동 모드 활성화: 적이 없어 월드 탐색을 시작합니다.");
+                }
             }
-            
-            // 즉시 타겟 업데이트 시도
-            UpdateTarget();
+            else if (detectedEnemies.Count > 0)
+            {
+                SetNewTarget(detectedEnemies.First());
+            }
         }
         else
         {
-            // 자동 모드 비활성화 시
             ResetTarget();
+            joystickObject?.SetActive(true);
+            isAttacking = false;
+            
+            if (attackDelayCoroutine != null)
+            {
+                StopCoroutine(attackDelayCoroutine);
+            }
+        }
+        
+        if (drawDebugInfo)
+        {
+            Debug.Log($"자동 모드 {(enabled ? "활성화" : "비활성화")}");
         }
     }
     
-    // 조이스틱 가시성 토글
     private void ToggleJoystickVisibility(bool show)
     {
         if (joystickObject != null && joystickObject.activeSelf != show)
@@ -503,17 +438,15 @@ public class AutoCombat : MonoBehaviour
         }
     }
     
-    // 전역 탐색 설정
     public void SetGlobalSearchEnabled(bool enabled)
     {
-        if (useGlobalSearch == enabled) return; // 이미 같은 상태면 아무것도 하지 않음
+        if (useGlobalSearch == enabled) return;
         
         useGlobalSearch = enabled;
         
-        // 설정이 변경되었고 현재 타겟이 없는 경우 즉시 타겟 검색
         if (autoModeEnabled && currentTarget == null)
         {
-            targetCheckTimer = targetUpdateInterval; // 다음 프레임에 타겟 검색
+            targetCheckTimer = targetUpdateInterval;
         }
         
         if (drawDebugInfo)
@@ -522,8 +455,7 @@ public class AutoCombat : MonoBehaviour
         }
     }
     
-    // 외부에서 타겟 직접 설정
-    public void SetTarget(Transform target)
+    public void SetTarget(GameObject target)
     {
         if (target != null)
         {
@@ -532,33 +464,161 @@ public class AutoCombat : MonoBehaviour
         }
     }
     
-    // 자동 모드 상태 확인
     public bool IsAutoModeEnabled()
     {
         return autoModeEnabled;
     }
     
-    // 디버그용 기즈모
     private void OnDrawGizmos()
     {
         if (!Application.isPlaying) return;
         
-        // 타겟이 있으면 연결선 표시
         if (currentTarget != null)
         {
             Gizmos.color = Color.red;
-            Gizmos.DrawLine(transform.position, currentTarget.position);
+            Gizmos.DrawLine(transform.position, currentTarget.transform.position);
             
-            // 타겟 위치에 구체 표시
-            Gizmos.DrawWireSphere(currentTarget.position, 0.3f);
+            Gizmos.DrawWireSphere(currentTarget.transform.position, 0.3f);
         }
         
-        // 이동 방향 표시
         if (movementInput.magnitude > 0.1f)
         {
             Gizmos.color = Color.blue;
             Vector3 moveDirection = new Vector3(movementInput.x, 0, -movementInput.y).normalized;
             Gizmos.DrawRay(transform.position, moveDirection * 2f);
         }
+    }
+    
+    private void UpdateMovement()
+    {
+        if (currentTarget != null)
+        {
+            Vector3 currentPos = transform.position;
+            Vector3 targetPos = currentTarget.transform.position;
+            float distanceToTarget = Vector3.Distance(currentPos, targetPos);
+            
+            if (distanceToTarget > minDistanceToEnemy)
+            {
+                // XZ 평면에서의 방향을 입력값으로 변환
+                Vector3 direction = targetPos - currentPos;
+                Vector2 input = new Vector2(direction.x, direction.z).normalized;
+                
+                if (drawDebugInfo && Vector3.Distance(currentPos, lastDebuggedPosition) > 1f)
+                {
+                    Debug.Log($"[타겟 추적] 현재: {currentPos}, 목표: {targetPos}");
+                    Debug.Log($"[입력값] 방향: {direction}, 정규화된 입력: {input}");
+                    lastDebuggedPosition = currentPos;
+                }
+                
+                // InputManager에 입력값 전달
+                inputManager?.SetVirtualInput(input);
+            }
+            else
+            {
+                inputManager?.SetVirtualInput(Vector2.zero);
+            }
+        }
+    }
+    
+    public void OnEnemyDetected(GameObject enemy)
+    {
+        if (!autoModeEnabled) return;
+        
+        if (currentTarget == null)
+        {
+            currentTarget = enemy;
+        }
+    }
+    
+    public void OnEnemyLost(GameObject enemy)
+    {
+        if (enemy == currentTarget)
+        {
+            // DetectionRange.GetNearestEnemy 대신 allEnemiesInWorld에서 찾기
+            GameObject newTarget = null;
+            float nearestDistance = float.MaxValue;
+            Vector3 currentPos = transform.position;
+
+            foreach (GameObject potentialTarget in allEnemiesInWorld)
+            {
+                if (potentialTarget == null) continue;
+                
+                float distance = Vector3.Distance(currentPos, potentialTarget.transform.position);
+                if (distance < nearestDistance)
+                {
+                    nearestDistance = distance;
+                    newTarget = potentialTarget;
+                }
+            }
+
+            currentTarget = newTarget;
+            
+            if (currentTarget == null && drawDebugInfo)
+            {
+                Debug.Log("감지된 적이 없습니다.");
+            }
+        }
+    }
+    
+    public void OnEnemyEnteredAttackRange(GameObject enemy)
+    {
+        if (!autoModeEnabled) return;
+        
+        if (enemy == currentTarget)
+        {
+            animator?.SetBool("Attack", true);
+            isAttacking = true;
+        }
+    }
+    
+    public void OnEnemyExitedAttackRange(GameObject enemy)
+    {
+        if (!autoModeEnabled) return;
+        
+        if (enemy == currentTarget)
+        {
+            if (attackDelayCoroutine != null)
+            {
+                StopCoroutine(attackDelayCoroutine);
+            }
+            attackDelayCoroutine = StartCoroutine(DelayedAttackStop());
+        }
+    }
+    
+    private IEnumerator DelayedAttackStop()
+    {
+        yield return new WaitForSeconds(attackAnimationDelay);
+        
+        if (!attackRange.HasEnemiesInRange())
+        {
+            animator?.SetBool("Attack", false);
+            isAttacking = false;
+        }
+    }
+
+    // Enemy 프리팹에서 호출할 정적 메서드들
+    public static void RegisterEnemy(GameObject enemy)
+    {
+        if (enemy != null && enemy.CompareTag("Enemy"))
+        {
+            allEnemiesInWorld.Add(enemy);
+            if (staticDebugEnabled)
+            {
+                Debug.Log($"[전역 적 관리] 적 등록: {enemy.name}, 총 적 수: {allEnemiesInWorld.Count}");
+            }
+        }
+    }
+    
+    public static void UnregisterEnemy(GameObject enemy)
+    {
+        if (allEnemiesInWorld.Remove(enemy) && staticDebugEnabled)
+        {
+            Debug.Log($"[전역 적 관리] 적 제거: {enemy.name}, 남은 적 수: {allEnemiesInWorld.Count}");
+        }
+    }
+
+    private void OnValidate()
+    {
+        staticDebugEnabled = drawDebugInfo;  // Inspector에서 값이 변경될 때도 반영
     }
 } 

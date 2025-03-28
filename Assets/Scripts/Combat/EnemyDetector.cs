@@ -2,6 +2,7 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Collections;
 
+[RequireComponent(typeof(SphereCollider))]
 public class EnemyDetector : MonoBehaviour
 {
     [Tooltip("이동 및 전투 관련 설정이 포함된 설정 파일")]
@@ -41,6 +42,14 @@ public class EnemyDetector : MonoBehaviour
     private const float WEIGHT_DECREASE = 0.2f;
     private const float WEIGHT_THRESHOLD = 1.0f;
 
+    private SphereCollider detectionCollider;
+    private HashSet<GameObject> detectedEnemies = new HashSet<GameObject>();
+    private AutoCombat autoCombat;
+
+    [SerializeField] private float detectionRadius = 10f; // 이 필드 추가
+
+    [SerializeField] private bool debugEnabled = false;
+
     public Transform NearestEnemy => nearestEnemy;
     public bool IsActivelySearching => isActivelySearching;
     
@@ -74,8 +83,18 @@ public class EnemyDetector : MonoBehaviour
         }
     }
 
-    private void Start()
+    private void Awake()
     {
+        detectionCollider = GetComponent<SphereCollider>();
+        detectionCollider.radius = detectionRadius;
+        detectionCollider.isTrigger = true;
+        
+        autoCombat = GetComponentInParent<AutoCombat>();
+        if (autoCombat == null)
+        {
+            Debug.LogError("EnemyDetector: AutoCombat 컴포넌트를 찾을 수 없습니다!");
+        }
+        
         if (settings == null)
         {
             var playerMovement = GetComponent<CharacterMovement>();
@@ -187,45 +206,45 @@ public class EnemyDetector : MonoBehaviour
     
     private void UpdateEnemyData(Collider[] colliders)
     {
-        // 기존 가중치 감소
-        List<Transform> keysToRemove = new List<Transform>();
-        foreach (var enemy in enemyWeights.Keys)
+        // 임시 리스트에 현재 키들을 복사
+        var currentEnemies = new List<Transform>(enemyWeights.Keys);
+        var enemiestoRemove = new List<Transform>();
+        
+        // 먼저 제거할 적들을 찾음
+        foreach (var enemy in currentEnemies)
         {
             if (!IsEnemyValid(enemy))
             {
-                keysToRemove.Add(enemy);
+                enemiestoRemove.Add(enemy);
                 continue;
             }
             
-            enemyWeights[enemy] = Mathf.Max(0, enemyWeights[enemy] - WEIGHT_DECREASE);
+            // 가중치 감소는 별도 처리
+            float currentWeight = enemyWeights[enemy];
+            enemyWeights[enemy] = Mathf.Max(0, currentWeight - WEIGHT_DECREASE);
         }
         
-        // 유효하지 않은 적 제거
-        foreach (var key in keysToRemove)
+        // 한번에 제거
+        foreach (var enemy in enemiestoRemove)
         {
-            enemyWeights.Remove(key);
-            enemyDistances.Remove(key);
+            enemyWeights.Remove(enemy);
+            enemyDistances.Remove(enemy);
         }
         
-        // 새 적 거리 계산 및 가중치 업데이트
-        foreach (var collider in colliders)
+        // 새로운 적들 처리
+        foreach (Collider col in colliders)
         {
-            if (collider.transform == null) continue;
+            if (!col.CompareTag("Enemy")) continue;
             
-            Transform enemy = collider.transform;
+            Transform enemy = col.transform;
             float distance = Vector3.Distance(transform.position, enemy.position);
             
             enemyDistances[enemy] = distance;
-            
-            // 새 적이거나 가중치가 낮은 경우 가중치 증가
             if (!enemyWeights.ContainsKey(enemy))
             {
-                enemyWeights[enemy] = WEIGHT_THRESHOLD;
+                enemyWeights[enemy] = 0;
             }
-            else
-            {
-                enemyWeights[enemy] = Mathf.Min(enemyWeights[enemy] + WEIGHT_INCREASE, 3.0f);
-            }
+            enemyWeights[enemy] = Mathf.Min(enemyWeights[enemy] + WEIGHT_INCREASE, 2f);
         }
     }
     
@@ -259,8 +278,10 @@ public class EnemyDetector : MonoBehaviour
     
     private bool IsEnemyValid(Transform enemy)
     {
-        // 적이 존재하는지, 활성화된 상태인지 확인
-        return enemy != null && enemy.gameObject.activeInHierarchy;
+        if (enemy == null || !enemy.gameObject.activeInHierarchy) return false;
+        
+        float distance = Vector3.Distance(transform.position, enemy.position);
+        return distance <= settings.searchRadius;
     }
     
     private void ResetCache()
@@ -417,5 +438,66 @@ public class EnemyDetector : MonoBehaviour
             Gizmos.color = Color.red;
             Gizmos.DrawLine(transform.position, nearestEnemy.position);
         }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Enemy"))
+        {
+            detectedEnemies.Add(other.gameObject);
+            if (debugEnabled)
+            {
+                Debug.Log($"적 감지됨: {other.gameObject.name}");
+            }
+            autoCombat?.OnEnemyDetected(other.gameObject);
+        }
+    }
+    
+    private void OnTriggerExit(Collider other)
+    {
+        if (other.CompareTag("Enemy"))
+        {
+            detectedEnemies.Remove(other.gameObject);
+            if (debugEnabled)
+            {
+                Debug.Log($"적 감지 범위 이탈: {other.gameObject.name}");
+            }
+            autoCombat?.OnEnemyLost(other.gameObject);
+        }
+    }
+    
+    public void ValidateDetectedEnemies()
+    {
+        var invalidEnemies = new List<GameObject>();
+        
+        foreach (var enemy in detectedEnemies)
+        {
+            if (enemy == null || !enemy.activeInHierarchy)
+            {
+                invalidEnemies.Add(enemy);
+                continue;
+            }
+            
+            float distance = Vector3.Distance(transform.position, enemy.transform.position);
+            if (distance > detectionRadius)
+            {
+                invalidEnemies.Add(enemy);
+            }
+        }
+        
+        foreach (var enemy in invalidEnemies)
+        {
+            detectedEnemies.Remove(enemy);
+            if (debugEnabled)
+            {
+                Debug.Log($"유효하지 않은 적 제거됨: {enemy?.name ?? "null"}");
+            }
+            autoCombat?.OnEnemyLost(enemy);
+        }
+    }
+    
+    public HashSet<GameObject> GetDetectedEnemies()
+    {
+        return new HashSet<GameObject>(detectedEnemies);
     }
 } 
