@@ -33,6 +33,17 @@ public class DetectionRange : MonoBehaviour
         {
             detectedEnemies.Remove(other.gameObject);
             autoCombat.OnEnemyLost(other.gameObject);
+            
+            if (autoCombat.Animator != null && detectedEnemies.Count == 0)
+            {
+                autoCombat.Animator.SetBool("Walk", false);
+                autoCombat.Animator.SetBool("Idle", true);
+                
+                if (autoCombat.DrawDebugInfo)
+                {
+                    Debug.Log("[DetectionRange] 모든 적이 감지 범위를 벗어남 - Idle 상태로 전환");
+                }
+            }
         }
     }
     

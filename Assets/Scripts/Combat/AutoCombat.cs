@@ -10,7 +10,7 @@ public class AutoCombat : MonoBehaviour
     [SerializeField] private bool autoModeEnabled = false;
     [Tooltip("타겟 업데이트 간격 (초 단위)")]
     [SerializeField, Range(0.1f, 3f)] private float targetUpdateInterval = 0.8f;
-    [SerializeField, Range(0.1f, 10f)] private float minDistanceToEnemy = 1.5f;
+    [SerializeField, Range(0.1f, 10f)] private float minDistanceToEnemy = 2f;
     [SerializeField, Range(0.1f, 10f)] private float maxSearchDistance = 10f;
     [SerializeField] private LayerMask enemyLayer;
     
@@ -68,7 +68,7 @@ public class AutoCombat : MonoBehaviour
 
     [Header("자동 전투 설정")]
     [SerializeField] private float validationInterval = 1f;
-    [SerializeField] private float attackAnimationDelay = 0.5f;
+    [SerializeField] private float attackAnimationDelay = 0.1f;
 
     private Vector3 lastDebuggedPosition;
     private Vector3 lastDebuggedTargetPosition;
@@ -406,6 +406,12 @@ public class AutoCombat : MonoBehaviour
             {
                 SetNewTarget(detectedEnemies.First());
             }
+            
+            ValidateCurrentState();
+            if (drawDebugInfo)
+            {
+                Debug.Log("[AutoCombat] 자동 모드 활성화 - 현재 상태 검증");
+            }
         }
         else
         {
@@ -416,6 +422,11 @@ public class AutoCombat : MonoBehaviour
             if (attackDelayCoroutine != null)
             {
                 StopCoroutine(attackDelayCoroutine);
+            }
+            
+            if (drawDebugInfo)
+            {
+                Debug.Log("[AutoCombat] 자동 모드 비활성화");
             }
         }
         
@@ -566,8 +577,11 @@ public class AutoCombat : MonoBehaviour
         
         if (enemy == currentTarget)
         {
-            animator?.SetBool("Attack", true);
-            isAttacking = true;
+            StartCoroutine(StartAttackWithDelay());
+            if (drawDebugInfo)
+            {
+                Debug.Log($"[AutoCombat] 적 공격 범위 진입: {enemy.name}");
+            }
         }
     }
     
@@ -577,11 +591,28 @@ public class AutoCombat : MonoBehaviour
         
         if (enemy == currentTarget)
         {
-            if (attackDelayCoroutine != null)
+            // 공격 중지
+            if (animator != null)
             {
-                StopCoroutine(attackDelayCoroutine);
+                animator.SetBool("Attack", false);
+                
+                // 이동 중이면 Walk, 아니면 Idle
+                if (characterMovement != null && characterMovement.MovementDelta.magnitude > 0.1f)
+                {
+                    animator.SetBool("Walk", true);
+                    animator.SetBool("Idle", false);
+                }
+                else
+                {
+                    animator.SetBool("Walk", false);
+                    animator.SetBool("Idle", true);
+                }
             }
-            attackDelayCoroutine = StartCoroutine(DelayedAttackStop());
+            
+            if (drawDebugInfo)
+            {
+                Debug.Log($"[AutoCombat] 타겟이 공격 범위를 벗어남: {enemy.name}");
+            }
         }
     }
     
@@ -593,6 +624,52 @@ public class AutoCombat : MonoBehaviour
         {
             animator?.SetBool("Attack", false);
             isAttacking = false;
+        }
+    }
+
+    private void ValidateCurrentState()
+    {
+        // 현재 AttackRange 내에 있는 적 체크
+        if (attackRange != null && attackRange.HasEnemiesInRange())
+        {
+            // 공격 범위 내 적이 있으면 즉시 공격 상태로
+            StartCoroutine(StartAttackWithDelay());
+            if (drawDebugInfo)
+            {
+                Debug.Log("[AutoCombat] 공격 범위 내 적 발견 - 공격 시작");
+            }
+        }
+        // DetectionRange 내 적 체크
+        else if (detectionRange != null && detectionRange.GetDetectedEnemies().Count > 0)
+        {
+            // 감지 범위 내 적이 있으면 이동 상태로
+            animator?.SetBool("Walk", true);
+            animator?.SetBool("Attack", false);
+            if (drawDebugInfo)
+            {
+                Debug.Log("[AutoCombat] 감지 범위 내 적 발견 - 이동 시작");
+            }
+        }
+    }
+
+    private IEnumerator StartAttackWithDelay()
+    {
+        if (drawDebugInfo)
+        {
+            Debug.Log($"[AutoCombat] 공격 시작 대기 중... (딜레이: {attackAnimationDelay}초)");
+        }
+        
+        yield return new WaitForSeconds(attackAnimationDelay);
+        
+        if (animator != null && currentTarget != null)
+        {
+            animator.SetBool("Attack", true);
+            animator.SetBool("Walk", false);
+            
+            if (drawDebugInfo)
+            {
+                Debug.Log("[AutoCombat] 공격 애니메이션 시작");
+            }
         }
     }
 
@@ -621,4 +698,8 @@ public class AutoCombat : MonoBehaviour
     {
         staticDebugEnabled = drawDebugInfo;  // Inspector에서 값이 변경될 때도 반영
     }
+
+    public Animator Animator => animator; // 추가: AttackRange에서 접근하기 위한 프로퍼티
+
+    public bool DrawDebugInfo => drawDebugInfo;
 } 

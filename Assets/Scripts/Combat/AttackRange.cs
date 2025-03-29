@@ -33,6 +33,15 @@ public class AttackRange : MonoBehaviour
         {
             enemiesInRange.Remove(other.gameObject);
             autoCombat.OnEnemyExitedAttackRange(other.gameObject);
+            
+            if (autoCombat.Animator != null)
+            {
+                autoCombat.Animator.SetBool("Attack", false);
+                if (autoCombat.DrawDebugInfo)
+                {
+                    Debug.Log("[AttackRange] 적이 공격 범위를 벗어남 - 공격 애니메이션 중단");
+                }
+            }
         }
     }
     
