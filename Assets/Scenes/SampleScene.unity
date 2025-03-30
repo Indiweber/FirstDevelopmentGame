@@ -924,7 +924,7 @@ MonoBehaviour:
   inputManager: {fileID: 629302261}
   animator: {fileID: 629302260}
   validationInterval: 1
-  attackAnimationDelay: 0.1
+  attackAnimationDelay: 0.5
 --- !u!135 &629302268
 SphereCollider:
   m_ObjectHideFlags: 0
