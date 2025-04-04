@@ -1,3 +1,13 @@
+// #define DEBUG_COMPONENT_NOT_FOUND
+// #define DEBUG_HITBOX_STATE
+// #define DEBUG_COLLISION
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: 필수 컴포넌트를 찾지 못했을 때 에러를 출력
+ * DEBUG_HITBOX_STATE: 히트박스 상태 변경 관련 디버그 정보를 출력
+ * DEBUG_COLLISION: 충돌 처리 관련 디버그 정보를 출력
+ */
+
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -59,6 +69,9 @@ public class HitboxController : MonoBehaviour
         {
             _hitboxTrigger.gameObject.SetActive(true);
             isHitboxActive = true;
+            #if DEBUG_HITBOX_STATE
+            Debug.Log($"히트박스 활성화: {gameObject.name}");
+            #endif
         }
     }
     
@@ -68,6 +81,9 @@ public class HitboxController : MonoBehaviour
         {
             _hitboxTrigger.gameObject.SetActive(false);
             isHitboxActive = false;
+            #if DEBUG_HITBOX_STATE
+            Debug.Log($"히트박스 비활성화: {gameObject.name}");
+            #endif
         }
     }
     

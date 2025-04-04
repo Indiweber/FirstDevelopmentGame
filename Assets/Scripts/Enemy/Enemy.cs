@@ -1,19 +1,22 @@
 using UnityEngine;
 
-public class Enemy : MonoBehaviour
+namespace Enemy
 {
-    private void OnEnable()
+    public class Enemy : MonoBehaviour
     {
-        AutoCombat.RegisterEnemy(gameObject);
-    }
+        private void OnEnable()
+        {
+            AutoCombat.RegisterEnemy(gameObject);
+        }
 
-    private void OnDisable()
-    {
-        AutoCombat.UnregisterEnemy(gameObject);
-    }
+        private void OnDisable()
+        {
+            AutoCombat.UnregisterEnemy(gameObject);
+        }
 
-    private void OnDestroy()
-    {
-        AutoCombat.UnregisterEnemy(gameObject);
+        private void OnDestroy()
+        {
+            AutoCombat.UnregisterEnemy(gameObject);
+        }
     }
 } 

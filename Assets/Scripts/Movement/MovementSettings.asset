@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 72a23087aeea84d4b81c15d2279d42e6, type: 3}
   m_Name: MovementSettings
   m_EditorClassIdentifier: 
-  moveSpeed: 3
+  moveSpeed: 5
   searchRadius: 10
   dashSpeed: 10
   minEnemyDistance: 1

@@ -1,3 +1,13 @@
+// #define DEBUG_COMPONENT_NOT_FOUND
+// #define DEBUG_CAMERA_TARGET
+// #define DEBUG_CAMERA_MOVEMENT
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: 필수 컴포넌트를 찾지 못했을 때 에러를 출력
+ * DEBUG_CAMERA_TARGET: 카메라 타겟 설정 관련 디버그 정보를 출력
+ * DEBUG_CAMERA_MOVEMENT: 카메라 이동 관련 디버그 정보를 출력
+ */
+
 using UnityEngine;
 
 public class CameraController : MonoBehaviour
@@ -27,11 +37,15 @@ public class CameraController : MonoBehaviour
             if (player != null)
             {
                 target = player.transform;
+                #if DEBUG_CAMERA_TARGET
                 Debug.Log("카메라가 플레이어를 자동으로 찾았습니다.");
+                #endif
             }
             else
             {
+                #if DEBUG_COMPONENT_NOT_FOUND
                 Debug.LogWarning("플레이어를 찾을 수 없습니다. 카메라 타겟을 수동으로 설정해주세요.");
+                #endif
                 return;
             }
         }
@@ -54,6 +68,10 @@ public class CameraController : MonoBehaviour
         // 부드러운 이동
         Vector3 smoothedPosition = Vector3.SmoothDamp(transform.position, desiredPosition, ref velocity, 1f/smoothSpeed);
         transform.position = smoothedPosition;
+
+        #if DEBUG_CAMERA_MOVEMENT
+        Debug.Log($"카메라 이동: {transform.position}, 타겟 위치: {target.position}");
+        #endif
     }
 
     // 타겟 설정 메서드
@@ -61,11 +79,13 @@ public class CameraController : MonoBehaviour
     {
         if (newTarget != null)
         {
-            // 새 타겟으로 설정 시 초기화
             target = newTarget;
             initialPlayerPosition = target.position;
             initialCameraPosition = transform.position;
             initialized = true;
+            #if DEBUG_CAMERA_TARGET
+            Debug.Log($"새로운 카메라 타겟 설정: {newTarget.name}");
+            #endif
         }
     }
 

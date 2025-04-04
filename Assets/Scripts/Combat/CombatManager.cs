@@ -1,3 +1,11 @@
+// #define DEBUG_COMPONENT_NOT_FOUND
+// #define DEBUG_COMBAT_INFO
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: 필수 컴포넌트를 찾지 못했을 때 에러를 출력
+ * DEBUG_COMBAT_INFO: 전투 관련 일반 디버그 정보를 출력
+ */
+
 using UnityEngine;
 using System.Collections;
 
@@ -27,7 +35,9 @@ public class CombatManager : MonoBehaviour
             attackTrigger = GetComponentInChildren<AttackTrigger>();
             if (attackTrigger == null)
             {
+                #if DEBUG_COMPONENT_NOT_FOUND
                 Debug.LogError("AttackTrigger를 찾을 수 없습니다. 자식 오브젝트에 추가해주세요.");
+                #endif
             }
         }
         
@@ -36,7 +46,9 @@ public class CombatManager : MonoBehaviour
             characterAnimator = GetComponent<CharacterAnimator>();
             if (characterAnimator == null)
             {
+                #if DEBUG_COMBAT_INFO
                 Debug.Log("CharacterAnimator를 찾을 수 없습니다. Animator를 직접 제어합니다.");
+                #endif
             }
         }
     }

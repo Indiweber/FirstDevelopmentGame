@@ -1,7 +1,26 @@
+// #define DEBUG_COMPONENT_NOT_FOUND
+// #define DEBUG_INITIALIZATION
+// #define DEBUG_AUTO_MODE
+// #define DEBUG_ENEMY_DETECTION
+// #define DEBUG_COMBAT_STATE
+// #define DEBUG_ENEMY_MANAGEMENT
+// #define DEBUG_MOVEMENT
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: 필수 컴포넌트를 찾지 못했을 때 에러를 출력
+ * DEBUG_INITIALIZATION: 초기화 관련 디버그 정보를 출력
+ * DEBUG_AUTO_MODE: 자동 모드 전환 관련 디버그 정보를 출력
+ * DEBUG_ENEMY_DETECTION: 적 감지 관련 디버그 정보를 출력
+ * DEBUG_COMBAT_STATE: 전투 상태 변경 관련 디버그 정보를 출력
+ * DEBUG_ENEMY_MANAGEMENT: 적 등록/해제 관련 디버그 정보를 출력
+ * DEBUG_MOVEMENT: 이동 관련 디버그 정보를 출력
+ */
+
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Enemy;
 
 [RequireComponent(typeof(CharacterMovement))]
 public class AutoCombat : MonoBehaviour
@@ -85,24 +104,36 @@ public class AutoCombat : MonoBehaviour
         {
             detectionRange = GetComponentInChildren<DetectionRange>();
             if (detectionRange == null)
+            {
+                #if DEBUG_COMPONENT_NOT_FOUND
                 Debug.LogError("DetectionRange가 없습니다!");
+                #endif
+            }
         }
         
         if (attackRange == null)
         {
             attackRange = GetComponentInChildren<AttackRange>();
             if (attackRange == null)
+            {
+                #if DEBUG_COMPONENT_NOT_FOUND
                 Debug.LogError("AttackRange가 없습니다!");
+                #endif
+            }
         }
         
         if (inputManager == null)
         {
+            #if DEBUG_COMPONENT_NOT_FOUND
             Debug.LogError("InputManager를 찾을 수 없습니다!");
+            #endif
         }
         
         if (characterMovement == null)
         {
+            #if DEBUG_COMPONENT_NOT_FOUND
             Debug.LogError("CharacterMovement 컴포넌트를 찾을 수 없습니다!");
+            #endif
         }
         
         lastPosition = transform.position;
@@ -113,7 +144,9 @@ public class AutoCombat : MonoBehaviour
     {
         if (inputManager == null)
         {
+            #if DEBUG_COMPONENT_NOT_FOUND
             Debug.LogError("InputManager를 찾을 수 없습니다! 자동 전투 기능이 작동하지 않을 수 있습니다.");
+            #endif
         }
         
         if (joystickObject == null)
@@ -121,7 +154,9 @@ public class AutoCombat : MonoBehaviour
             joystickObject = GameObject.FindGameObjectWithTag("Joystick");
             if (joystickObject == null)
             {
+                #if DEBUG_COMPONENT_NOT_FOUND
                 Debug.LogWarning("조이스틱 오브젝트를 찾을 수 없습니다. 자동 모드에서 조이스틱 비활성화 기능이 동작하지 않을 수 있습니다.");
+                #endif
             }
         }
         
@@ -137,11 +172,10 @@ public class AutoCombat : MonoBehaviour
             RegisterEnemy(enemy);
         }
         
-        if (drawDebugInfo)
-        {
-            Debug.Log("AutoCombat 초기화 완료");
-            Debug.Log($"[시작] 등록된 적 수: {allEnemiesInWorld.Count}");
-        }
+        #if DEBUG_INITIALIZATION
+        Debug.Log("AutoCombat 초기화 완료");
+        Debug.Log($"[시작] 등록된 적 수: {allEnemiesInWorld.Count}");
+        #endif
     }
     
     private void Update()
@@ -187,10 +221,9 @@ public class AutoCombat : MonoBehaviour
                 animator.SetBool("Walk", false);
             }
             
-            if (drawDebugInfo)
-            {
-                Debug.Log($"공격 범위 내 도달: 거리={distanceToTarget:F2}");
-            }
+            #if DEBUG_MOVEMENT
+            Debug.Log($"공격 범위 내 도달: 거리={distanceToTarget:F2}");
+            #endif
         }
         else
         {
@@ -202,10 +235,9 @@ public class AutoCombat : MonoBehaviour
             Vector3 normalizedDirection = directionToTarget.normalized;
             targetDirection = new Vector2(normalizedDirection.x, normalizedDirection.z);
             
-            if (drawDebugInfo)
-            {
-                Debug.Log($"타겟으로 이동 중: 거리={distanceToTarget:F2}, 방향={targetDirection}");
-            }
+            #if DEBUG_MOVEMENT
+            Debug.Log($"타겟으로 이동 중: 거리={distanceToTarget:F2}, 방향={targetDirection}");
+            #endif
         }
     }
     
@@ -397,10 +429,9 @@ public class AutoCombat : MonoBehaviour
             {
                 isGlobalSearching = true;
                 globalSearchTimer = 0f;
-                if (drawDebugInfo)
-                {
-                    Debug.Log("자동 모드 활성화: 적이 없어 월드 탐색을 시작합니다.");
-                }
+                #if DEBUG_AUTO_MODE
+                Debug.Log("자동 모드 활성화: 적이 없어 월드 탐색을 시작합니다.");
+                #endif
             }
             else if (detectedEnemies.Count > 0)
             {
@@ -408,10 +439,9 @@ public class AutoCombat : MonoBehaviour
             }
             
             ValidateCurrentState();
-            if (drawDebugInfo)
-            {
-                Debug.Log("[AutoCombat] 자동 모드 활성화 - 현재 상태 검증");
-            }
+            #if DEBUG_AUTO_MODE
+            Debug.Log("[AutoCombat] 자동 모드 활성화 - 현재 상태 검증");
+            #endif
         }
         else
         {
@@ -424,16 +454,14 @@ public class AutoCombat : MonoBehaviour
                 StopCoroutine(attackDelayCoroutine);
             }
             
-            if (drawDebugInfo)
-            {
-                Debug.Log("[AutoCombat] 자동 모드 비활성화");
-            }
+            #if DEBUG_AUTO_MODE
+            Debug.Log("[AutoCombat] 자동 모드 비활성화");
+            #endif
         }
         
-        if (drawDebugInfo)
-        {
-            Debug.Log($"자동 모드 {(enabled ? "활성화" : "비활성화")}");
-        }
+        #if DEBUG_AUTO_MODE
+        Debug.Log($"자동 모드 {(enabled ? "활성화" : "비활성화")}");
+        #endif
     }
     
     private void ToggleJoystickVisibility(bool show)
@@ -679,18 +707,19 @@ public class AutoCombat : MonoBehaviour
         if (enemy != null && enemy.CompareTag("Enemy"))
         {
             allEnemiesInWorld.Add(enemy);
-            if (staticDebugEnabled)
-            {
-                Debug.Log($"[전역 적 관리] 적 등록: {enemy.name}, 총 적 수: {allEnemiesInWorld.Count}");
-            }
+            #if DEBUG_ENEMY_MANAGEMENT
+            Debug.Log($"[전역 적 관리] 적 등록: {enemy.name}, 총 적 수: {allEnemiesInWorld.Count}");
+            #endif
         }
     }
     
     public static void UnregisterEnemy(GameObject enemy)
     {
-        if (allEnemiesInWorld.Remove(enemy) && staticDebugEnabled)
+        if (allEnemiesInWorld.Remove(enemy))
         {
+            #if DEBUG_ENEMY_MANAGEMENT
             Debug.Log($"[전역 적 관리] 적 제거: {enemy.name}, 남은 적 수: {allEnemiesInWorld.Count}");
+            #endif
         }
     }
 

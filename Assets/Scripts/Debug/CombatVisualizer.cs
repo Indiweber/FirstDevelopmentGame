@@ -1,3 +1,11 @@
+// #define DEBUG_COMPONENT_NOT_FOUND
+// #define DEBUG_VISUALIZATION
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: 필수 컴포넌트를 찾지 못했을 때 에러를 출력
+ * DEBUG_VISUALIZATION: 시각화 관련 디버그 정보를 출력
+ */
+
 using UnityEngine;
 
 public class CombatVisualizer : MonoBehaviour
@@ -15,6 +23,14 @@ public class CombatVisualizer : MonoBehaviour
 
     private void Start()
     {
+        if (GetComponent<AutoCombat>() == null)
+        {
+            #if DEBUG_COMPONENT_NOT_FOUND
+            Debug.LogError("AutoCombat 컴포넌트가 필요합니다!");
+            #endif
+            enabled = false;
+        }
+
         // MovementSettings 자동 찾기
         if (settings == null)
         {
@@ -33,6 +49,15 @@ public class CombatVisualizer : MonoBehaviour
 
     private void OnDrawGizmos()
     {
+        if (!Application.isPlaying) return;
+        
+        var autoCombat = GetComponent<AutoCombat>();
+        if (autoCombat == null) return;
+        
+        #if DEBUG_VISUALIZATION
+        Debug.Log("전투 시각화 업데이트");
+        #endif
+
         if (!settings) return;
 
         // 탐지 범위 시각화

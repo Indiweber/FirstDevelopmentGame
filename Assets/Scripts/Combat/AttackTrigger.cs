@@ -1,3 +1,13 @@
+// #define DEBUG_COMPONENT_NOT_FOUND
+// #define DEBUG_ATTACK_TRIGGER
+// #define DEBUG_DAMAGE
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: 필수 컴포넌트를 찾지 못했을 때 에러를 출력
+ * DEBUG_ATTACK_TRIGGER: 공격 트리거 관련 디버그 정보를 출력
+ * DEBUG_DAMAGE: 데미지 처리 관련 디버그 정보를 출력
+ */
+
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -12,6 +22,17 @@ public class AttackTrigger : MonoBehaviour
     
     [SerializeField] private bool debugEnabled = false;
     
+    private void Start()
+    {
+        if (GetComponent<Collider>() == null)
+        {
+            #if DEBUG_COMPONENT_NOT_FOUND
+            Debug.LogError("Collider 컴포넌트가 필요합니다!");
+            #endif
+            enabled = false;
+        }
+    }
+
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag(targetTag))

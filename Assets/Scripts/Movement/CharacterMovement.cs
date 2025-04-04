@@ -1,3 +1,13 @@
+// #define DEBUG_COMPONENT_NOT_FOUND
+// #define DEBUG_MOVEMENT_STATE
+// #define DEBUG_SETTINGS
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: 필수 컴포넌트를 찾지 못했을 때 에러를 출력
+ * DEBUG_MOVEMENT_STATE: 이동 상태 변경 관련 디버그 정보를 출력
+ * DEBUG_SETTINGS: 설정 관련 디버그 정보를 출력
+ */
+
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -43,13 +53,21 @@ public class CharacterMovement : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        if (rb == null)
+        {
+            #if DEBUG_COMPONENT_NOT_FOUND
+            Debug.LogError("Rigidbody 컴포넌트를 찾을 수 없습니다!");
+            #endif
+            return;
+        }
         rb.constraints = RigidbodyConstraints.FreezeRotation | RigidbodyConstraints.FreezePositionY;  // Y축 위치와 회전 제한
         rb.interpolation = RigidbodyInterpolation.Interpolate;  // 부드러운 이동을 위한 보간 설정
         
         if (settings == null)
         {
-            settings = ScriptableObject.CreateInstance<MovementSettings>();
+            #if DEBUG_SETTINGS
             Debug.LogWarning("MovementSettings가 할당되지 않았습니다. 기본값을 사용합니다.");
+            #endif
         }
         
         if (inputManager == null)
@@ -131,7 +149,7 @@ public class CharacterMovement : MonoBehaviour
             UpdateRotation(input.x);
             
             // 디버그 로그
-            Debug.Log($"캐릭터 이동: direction={moveDirection}, speed={currentSpeed}, velocity={targetVelocity}");
+            //Debug.Log($"캐릭터 이동: direction={moveDirection}, speed={currentSpeed}, velocity={targetVelocity}");
         }
         else
         {
@@ -182,5 +200,18 @@ public class CharacterMovement : MonoBehaviour
     public Vector3 GetPositionDelta()
     {
         return transform.position - lastPosition;
+    }
+
+    public void SetMovementState(bool isMoving)
+    {
+        if (this.isMoving != isMoving)
+        {
+            this.isMoving = isMoving;
+            OnMovementStateChanged?.Invoke(isMoving);
+            
+            #if DEBUG_MOVEMENT_STATE
+            Debug.Log($"이동 상태 변경: {isMoving}");
+            #endif
+        }
     }
 } 

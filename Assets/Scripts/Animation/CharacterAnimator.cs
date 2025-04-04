@@ -1,3 +1,9 @@
+#define DEBUG_COMPONENT_NOT_FOUND
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: CharacterMovement 컴포넌트를 찾지 못했을 때 에러를 출력
+ */
+
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -27,7 +33,9 @@ public class CharacterAnimator : MonoBehaviour
                 characterMovement = GetComponentInParent<CharacterMovement>();
                 if (characterMovement == null)
                 {
+                    #if DEBUG_COMPONENT_NOT_FOUND
                     Debug.LogError("CharacterMovement를 찾을 수 없습니다!");
+                    #endif
                 }
             }
         }

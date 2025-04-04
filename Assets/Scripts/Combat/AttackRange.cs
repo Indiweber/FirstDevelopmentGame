@@ -1,3 +1,13 @@
+// #define DEBUG_COMPONENT_NOT_FOUND
+// #define DEBUG_ATTACK_RANGE
+// #define DEBUG_ENEMY_MANAGEMENT
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: 필수 컴포넌트를 찾지 못했을 때 에러를 출력
+ * DEBUG_ATTACK_RANGE: 공격 범위 관련 디버그 정보를 출력
+ * DEBUG_ENEMY_MANAGEMENT: 적 등록/해제 관련 디버그 정보를 출력
+ */
+
 using UnityEngine;
 using System.Collections.Generic;
 
@@ -9,12 +19,14 @@ public class AttackRange : MonoBehaviour
     [SerializeField] private float attackRadius = 2f;
     [SerializeField] private LayerMask enemyLayer;
     
-    private void Awake()
+    private void Start()
     {
         autoCombat = GetComponentInParent<AutoCombat>();
         if (autoCombat == null)
         {
-            Debug.LogError("AttackRange: AutoCombat 컴포넌트를 찾을 수 없습니다!");
+            #if DEBUG_COMPONENT_NOT_FOUND
+            Debug.LogError("AutoCombat 컴포넌트를 찾을 수 없습니다!");
+            #endif
         }
     }
     
@@ -23,7 +35,10 @@ public class AttackRange : MonoBehaviour
         if (other.CompareTag("Enemy"))
         {
             enemiesInRange.Add(other.gameObject);
-            autoCombat.OnEnemyEnteredAttackRange(other.gameObject);
+            #if DEBUG_ATTACK_RANGE
+            Debug.Log($"적이 공격 범위에 진입: {other.gameObject.name}");
+            #endif
+            autoCombat?.OnEnemyEnteredAttackRange(other.gameObject);
         }
     }
     
@@ -32,43 +47,35 @@ public class AttackRange : MonoBehaviour
         if (other.CompareTag("Enemy"))
         {
             enemiesInRange.Remove(other.gameObject);
-            autoCombat.OnEnemyExitedAttackRange(other.gameObject);
-            
-            if (autoCombat.Animator != null)
-            {
-                autoCombat.Animator.SetBool("Attack", false);
-                if (autoCombat.DrawDebugInfo)
-                {
-                    Debug.Log("[AttackRange] 적이 공격 범위를 벗어남 - 공격 애니메이션 중단");
-                }
-            }
+            #if DEBUG_ATTACK_RANGE
+            Debug.Log($"적이 공격 범위를 벗어남: {other.gameObject.name}");
+            #endif
+            autoCombat?.OnEnemyExitedAttackRange(other.gameObject);
         }
     }
     
     public void ValidateEnemiesInRange()
     {
-        HashSet<GameObject> validEnemies = new HashSet<GameObject>();
-        Collider[] colliders = Physics.OverlapSphere(transform.position, attackRadius, enemyLayer);
+        var invalidEnemies = new List<GameObject>();
         
-        foreach (Collider col in colliders)
+        foreach (var enemy in enemiesInRange)
         {
-            if (col.CompareTag("Enemy"))
+            if (enemy == null || !enemy.activeInHierarchy)
             {
-                validEnemies.Add(col.gameObject);
+                invalidEnemies.Add(enemy);
+                #if DEBUG_ENEMY_MANAGEMENT
+                Debug.Log($"유효하지 않은 적 감지됨: {enemy?.name ?? "null"}");
+                #endif
             }
         }
         
-        // 유효하지 않은 적 제거
-        enemiesInRange.RemoveWhere(enemy => !validEnemies.Contains(enemy));
-        
-        // 새로운 적 추가
-        foreach (GameObject enemy in validEnemies)
+        foreach (var enemy in invalidEnemies)
         {
-            if (!enemiesInRange.Contains(enemy))
-            {
-                enemiesInRange.Add(enemy);
-                autoCombat.OnEnemyEnteredAttackRange(enemy);
-            }
+            enemiesInRange.Remove(enemy);
+            #if DEBUG_ENEMY_MANAGEMENT
+            Debug.Log($"유효하지 않은 적 제거됨: {enemy?.name ?? "null"}");
+            #endif
+            autoCombat?.OnEnemyExitedAttackRange(enemy);
         }
     }
     

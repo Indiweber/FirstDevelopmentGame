@@ -1,3 +1,13 @@
+// #define DEBUG_COMPONENT_NOT_FOUND
+// #define DEBUG_COMBAT_STATE
+// #define DEBUG_ATTACK_PROCESS
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: 필수 컴포넌트를 찾지 못했을 때 에러를 출력
+ * DEBUG_COMBAT_STATE: 전투 상태 변경 관련 디버그 정보를 출력
+ * DEBUG_ATTACK_PROCESS: 공격 처리 관련 디버그 정보를 출력
+ */
+
 using UnityEngine;
 using System.Collections;
 
@@ -14,9 +24,15 @@ public class CombatController : MonoBehaviour
     [Header("디버그")]
     [SerializeField] private bool debugEnabled = false;
     
+    [Header("전투 설정")]
+    [SerializeField] private float attackRange = 2f;
+    [SerializeField] private LayerMask enemyLayer;
+    
     private Animator animator;
     private bool canAttack = true;
     private int attackAnimHash;
+    private GameObject currentTarget;
+    private bool isInCombat;
     
     private void Awake()
     {
@@ -218,4 +234,53 @@ public class CombatController : MonoBehaviour
             TryAttack();
         }
     }
+
+    private void Start()
+    {
+        if (animator == null)
+        {
+            #if DEBUG_COMPONENT_NOT_FOUND
+            Debug.LogError("Animator 컴포넌트가 필요합니다!");
+            #endif
+            enabled = false;
+            return;
+        }
+    }
+
+    public void StartCombat(GameObject target)
+    {
+        if (target == null) return;
+
+        currentTarget = target;
+        isInCombat = true;
+        #if DEBUG_COMBAT_STATE
+        Debug.Log($"전투 시작: 대상 - {target.name}");
+        #endif
+    }
+
+    public void EndCombat()
+    {
+        currentTarget = null;
+        isInCombat = false;
+        #if DEBUG_COMBAT_STATE
+        Debug.Log("전투 종료");
+        #endif
+    }
+
+    private void ProcessAttack()
+    {
+        if (!isInCombat || currentTarget == null) return;
+
+        float distanceToTarget = Vector3.Distance(transform.position, currentTarget.transform.position);
+        if (distanceToTarget <= attackRange)
+        {
+            #if DEBUG_ATTACK_PROCESS
+            Debug.Log($"공격 처리 중: 대상 - {currentTarget.name}, 거리 - {distanceToTarget}");
+            #endif
+            animator.SetTrigger("Attack");
+        }
+    }
+
+    public bool IsInCombat => isInCombat;
+    public GameObject CurrentTarget => currentTarget;
 } 

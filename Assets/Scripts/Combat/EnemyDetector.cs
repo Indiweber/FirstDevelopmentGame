@@ -1,3 +1,15 @@
+// #define DEBUG_COMPONENT_NOT_FOUND
+// #define DEBUG_ENEMY_DETECTION
+// #define DEBUG_ENEMY_SEARCH
+// #define DEBUG_LAYER_SEARCH
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: 필수 컴포넌트를 찾지 못했을 때 에러를 출력
+ * DEBUG_ENEMY_DETECTION: 적 감지 관련 디버그 정보를 출력
+ * DEBUG_ENEMY_SEARCH: 적 탐색 관련 디버그 정보를 출력
+ * DEBUG_LAYER_SEARCH: 레이어 기반 탐색 관련 디버그 정보를 출력
+ */
+
 using UnityEngine;
 using System.Collections.Generic;
 using System.Collections;
@@ -92,7 +104,9 @@ public class EnemyDetector : MonoBehaviour
         autoCombat = GetComponentInParent<AutoCombat>();
         if (autoCombat == null)
         {
+            #if DEBUG_COMPONENT_NOT_FOUND
             Debug.LogError("EnemyDetector: AutoCombat 컴포넌트를 찾을 수 없습니다!");
+            #endif
         }
         
         if (settings == null)
@@ -104,7 +118,7 @@ public class EnemyDetector : MonoBehaviour
             }
         }
         
-        Debug.Log($"EnemyDetector 시작: 레이어 마스크 = {enemyLayer.value}, 서치 반경 = {settings?.searchRadius}");
+        // Debug.Log($"EnemyDetector 시작: 레이어 마스크 = {enemyLayer.value}, 서치 반경 = {settings?.searchRadius}");
         lastDetectionTime = -MIN_DETECTION_INTERVAL; // 시작 시 즉시 탐지 가능하도록 설정
     }
 
@@ -299,15 +313,12 @@ public class EnemyDetector : MonoBehaviour
     // 월드 내 모든 적 중 가장 가까운 적 찾기
     public Transform FindNearestEnemyInWorld()
     {
-        // 최소 탐지 간격 확인
         if (Time.time - lastDetectionTime < MIN_DETECTION_INTERVAL) 
         {
-            // 캐시된 적 반환
             if (cachedEnemy != null && cachedEnemy.gameObject.activeInHierarchy)
             {
                 return cachedEnemy;
             }
-            // 현재 가장 가까운 적 반환
             if (nearestEnemy != null && nearestEnemy.gameObject.activeInHierarchy)
             {
                 return nearestEnemy;
@@ -316,27 +327,25 @@ public class EnemyDetector : MonoBehaviour
         
         lastDetectionTime = Time.time;
         
-        // 씬에서 Enemy 레이어를 가진 모든 객체 찾기
         GameObject[] allEnemies = GameObject.FindGameObjectsWithTag("Enemy");
         
-        if (debugDetection)
-        {
-            Debug.Log($"Enemy 태그로 찾은 오브젝트 수: {allEnemies.Length}");
-        }
+        #if DEBUG_ENEMY_SEARCH
+        Debug.Log($"Enemy 태그로 찾은 오브젝트 수: {allEnemies.Length}");
+        #endif
         
         if (allEnemies.Length == 0)
         {
-            // Enemy 태그가 없을 경우 레이어를 직접 확인
             allEnemies = FindAllGameObjectsWithLayer(LayerMask.NameToLayer("Enemy"));
-            if (debugDetection)
-            {
-                Debug.Log($"Enemy 레이어로 찾은 오브젝트 수: {allEnemies.Length}");
-            }
+            #if DEBUG_ENEMY_SEARCH
+            Debug.Log($"Enemy 레이어로 찾은 오브젝트 수: {allEnemies.Length}");
+            #endif
         }
         
         if (allEnemies.Length == 0)
         {
+            #if DEBUG_ENEMY_SEARCH
             Debug.LogWarning("월드에 Enemy가 존재하지 않습니다!");
+            #endif
             return null;
         }
             
@@ -357,31 +366,28 @@ public class EnemyDetector : MonoBehaviour
         
         if (closestEnemy != null)
         {
-            // 캐시 업데이트
             cachedEnemy = closestEnemy;
             cacheTimer = 0f;
             
-            // 적의 인스턴스 ID 저장
             int enemyID = closestEnemy.GetInstanceID();
             
-            // 새로운 적인 경우에만 로그 출력
             if (enemyID != lastEnemyInstanceID)
             {
                 lastEnemyInstanceID = enemyID;
+                #if DEBUG_ENEMY_DETECTION
                 Debug.Log($"가장 가까운 적 발견: {closestEnemy.name}, 거리: {closestDistance:F5}");
+                #endif
             }
         }
         
         return closestEnemy;
     }
     
-    // 특정 레이어를 가진 모든 오브젝트 찾기
     private GameObject[] FindAllGameObjectsWithLayer(int layer)
     {
-        if (debugDetection)
-        {
-            Debug.Log($"Layer {layer}을 가진 오브젝트 검색 중...");
-        }
+        #if DEBUG_LAYER_SEARCH
+        Debug.Log($"Layer {layer}을 가진 오브젝트 검색 중...");
+        #endif
         
         List<GameObject> result = new List<GameObject>();
         GameObject[] allObjects = GameObject.FindObjectsOfType<GameObject>();
@@ -391,10 +397,9 @@ public class EnemyDetector : MonoBehaviour
             if (obj.layer == layer)
             {
                 result.Add(obj);
-                if (debugDetection)
-                {
-                    Debug.Log($"Enemy 레이어 오브젝트 발견: {obj.name}");
-                }
+                #if DEBUG_LAYER_SEARCH
+                Debug.Log($"Enemy 레이어 오브젝트 발견: {obj.name}");
+                #endif
             }
         }
         

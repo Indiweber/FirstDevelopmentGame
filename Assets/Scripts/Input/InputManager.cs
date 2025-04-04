@@ -1,3 +1,15 @@
+// #define DEBUG_COMPONENT_NOT_FOUND
+// #define DEBUG_INPUT_CHANGE
+// #define DEBUG_ATTACK_BUTTON
+// #define DEBUG_VIRTUAL_INPUT
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: 필수 컴포넌트를 찾지 못했을 때 에러를 출력
+ * DEBUG_INPUT_CHANGE: 입력 우선순위가 변경될 때의 디버그 정보를 출력
+ * DEBUG_ATTACK_BUTTON: 공격 버튼 입력 시의 디버그 정보를 출력
+ * DEBUG_VIRTUAL_INPUT: 가상 입력 설정 시의 디버그 정보를 출력
+ */
+
 using UnityEngine;
 using System.Collections.Generic;
 
@@ -35,9 +47,11 @@ public class InputManager : MonoBehaviour, IVirtualInputReceiver, IJoystickInput
         if (joystickController == null)
         {
             joystickController = FindObjectOfType<JoystickController>();
-            if (joystickController == null && enableDebugLogs)
+            if (joystickController == null)
             {
+                #if DEBUG_COMPONENT_NOT_FOUND
                 Debug.LogError("조이스틱 컨트롤러를 찾을 수 없습니다!");
+                #endif
             }
         }
         
@@ -55,18 +69,17 @@ public class InputManager : MonoBehaviour, IVirtualInputReceiver, IJoystickInput
         useJoystick = true;
         priorityInput = InputType.Joystick;
         
-        if (enableDebugLogs)
-        {
-            Debug.Log($"InputManager 초기화 - 조이스틱: {joystickController != null}, useJoystick: {useJoystick}");
-        }
+        // if (enableDebugLogs)
+        // {
+        //     Debug.Log($"InputManager 초기화 - 조이스틱: {joystickController != null}, useJoystick: {useJoystick}");
+        // }
     }
 
     private void Start()
     {
-        if (enableDebugLogs)
-        {
-            Debug.Log($"InputManager 시작 - 가상 입력: {useVirtualInput}, 조이스틱: {useJoystick}, 우선순위: {priorityInput}");
-        }
+        #if DEBUG_INPUT_CHANGE
+        Debug.Log($"InputManager 시작 - 가상 입력: {useVirtualInput}, 조이스틱: {useJoystick}, 우선순위: {priorityInput}");
+        #endif
     }
 
     private void Update()
@@ -96,10 +109,10 @@ public class InputManager : MonoBehaviour, IVirtualInputReceiver, IJoystickInput
         if (useJoystick && joystickController != null && priorityInput != InputType.Virtual)
         {
             Vector2 joystickInput = joystickController.GetJoystickValue();
-            if (enableDebugLogs && joystickInput.magnitude > 0.1f)
-            {
-                Debug.Log($"조이스틱 입력 감지: {joystickInput}, 크기: {joystickInput.magnitude}");
-            }
+            // if (enableDebugLogs && joystickInput.magnitude > 0.1f)
+            // {
+            //     Debug.Log($"조이스틱 입력 감지: {joystickInput}, 크기: {joystickInput.magnitude}");
+            // }
             return joystickInput;
         }
         
@@ -134,10 +147,9 @@ public class InputManager : MonoBehaviour, IVirtualInputReceiver, IJoystickInput
         priorityInput = inputType;
         _virtualInputEnabled = (inputType == InputType.Virtual);
         
-        if (enableDebugLogs)
-        {
-            Debug.Log($"입력 우선순위 변경: {inputType}, 가상 입력 활성화: {_virtualInputEnabled}");
-        }
+        #if DEBUG_INPUT_CHANGE
+        Debug.Log($"입력 우선순위 변경: {inputType}, 가상 입력 활성화: {_virtualInputEnabled}");
+        #endif
     }
 
     public InputType GetPriorityInput()
@@ -151,14 +163,15 @@ public class InputManager : MonoBehaviour, IVirtualInputReceiver, IJoystickInput
         {
             combatController.TryAttack();
             
-            if (enableDebugLogs)
-            {
-                Debug.Log("공격 버튼 누름");
-            }
+            #if DEBUG_ATTACK_BUTTON
+            Debug.Log("공격 버튼 누름");
+            #endif
         }
         else
         {
+            #if DEBUG_COMPONENT_NOT_FOUND
             Debug.LogWarning("CombatController를 찾을 수 없습니다.");
+            #endif
         }
     }
 
@@ -167,9 +180,11 @@ public class InputManager : MonoBehaviour, IVirtualInputReceiver, IJoystickInput
         virtualInput = input;
         _virtualInputEnabled = true;
         
-        if (enableDebugLogs && input.magnitude > 0.1f)
+        #if DEBUG_VIRTUAL_INPUT
+        if (input.magnitude > 0.1f)
         {
             Debug.Log($"가상 입력 설정: {input}, 크기: {input.magnitude}");
         }
+        #endif
     }
 } 

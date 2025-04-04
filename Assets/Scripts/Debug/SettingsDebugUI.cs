@@ -1,10 +1,31 @@
+// #define DEBUG_COMPONENT_NOT_FOUND
+// #define DEBUG_SETTINGS_CHANGE
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: 필수 컴포넌트를 찾지 못했을 때 에러를 출력
+ * DEBUG_SETTINGS_CHANGE: 설정 변경 관련 디버그 정보를 출력
+ */
+
 using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
 
 public class SettingsDebugUI : MonoBehaviour
 {
     [SerializeField] private MovementSettings settings;
     private bool showDebugWindow = false;
     private Rect windowRect = new Rect(10, 10, 300, 200);
+
+    private void Start()
+    {
+        if (GetComponent<MovementSettings>() == null)
+        {
+            #if DEBUG_COMPONENT_NOT_FOUND
+            Debug.LogError("MovementSettings 컴포넌트가 필요합니다!");
+            #endif
+            enabled = false;
+        }
+    }
 
     private void Update()
     {
@@ -42,5 +63,14 @@ public class SettingsDebugUI : MonoBehaviour
         GUILayout.Label($"Current: {settings.minEnemyDistance:F1}");
 
         GUI.DragWindow();
+    }
+
+    public void OnSettingChanged(float value)
+    {
+        #if DEBUG_SETTINGS_CHANGE
+        Debug.Log($"설정 변경: {value}");
+        #endif
+        
+        // ... existing code ...
     }
 } 

@@ -1,3 +1,13 @@
+// #define DEBUG_COMPONENT_NOT_FOUND
+// #define DEBUG_JOYSTICK_INPUT
+// #define DEBUG_TOUCH_STATE
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: 필수 컴포넌트를 찾지 못했을 때 에러를 출력
+ * DEBUG_JOYSTICK_INPUT: 조이스틱 입력값 관련 디버그 정보를 출력
+ * DEBUG_TOUCH_STATE: 터치 상태 변경 관련 디버그 정보를 출력
+ */
+
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -30,7 +40,6 @@ public class JoystickController : MonoBehaviour, IPointerDownHandler, IDragHandl
 
     private void InitializeComponents()
     {
-        // 컴포넌트 자동 참조
         if (background == null)
             background = transform.Find("Background")?.GetComponent<RectTransform>();
         
@@ -38,13 +47,25 @@ public class JoystickController : MonoBehaviour, IPointerDownHandler, IDragHandl
             handle = background.Find("Joystick")?.GetComponent<RectTransform>();
         
         if (background == null || handle == null)
+        {
+            #if DEBUG_COMPONENT_NOT_FOUND
             Debug.LogError("조이스틱 설정 오류: Background 또는 Joystick 오브젝트를 찾을 수 없습니다.");
+            #endif
+        }
 
         canvas = GetComponentInParent<Canvas>();
         if (canvas == null)
+        {
+            #if DEBUG_COMPONENT_NOT_FOUND
             Debug.LogError("The Joystick is not placed inside a canvas");
+            #endif
+        }
             
         SetupJoystickTransform();
+        
+        #if DEBUG_JOYSTICK_SETUP
+        Debug.Log($"조이스틱 초기화 완료 - Radius: {joystickRadius}, HandleRange: {handleRange}");
+        #endif
     }
 
     private void SetupJoystickTransform()

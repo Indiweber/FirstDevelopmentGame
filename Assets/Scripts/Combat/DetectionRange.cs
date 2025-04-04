@@ -1,3 +1,13 @@
+// #define DEBUG_COMPONENT_NOT_FOUND
+// #define DEBUG_DETECTION
+// #define DEBUG_TARGET_MANAGEMENT
+
+/* 디버그 정의
+ * DEBUG_COMPONENT_NOT_FOUND: 필수 컴포넌트를 찾지 못했을 때 에러를 출력
+ * DEBUG_DETECTION: 감지 범위 관련 디버그 정보를 출력
+ * DEBUG_TARGET_MANAGEMENT: 대상 관리 관련 디버그 정보를 출력
+ */
+
 using UnityEngine;
 using System.Collections.Generic;
 
@@ -14,7 +24,28 @@ public class DetectionRange : MonoBehaviour
         autoCombat = GetComponentInParent<AutoCombat>();
         if (autoCombat == null)
         {
+            #if DEBUG_COMPONENT_NOT_FOUND
             Debug.LogError("DetectionRange: AutoCombat 컴포넌트를 찾을 수 없습니다!");
+            #endif
+        }
+    }
+    
+    private void Start()
+    {
+        if (GetComponent<SphereCollider>() == null)
+        {
+            #if DEBUG_COMPONENT_NOT_FOUND
+            Debug.LogError("SphereCollider 컴포넌트가 필요합니다!");
+            #endif
+            enabled = false;
+        }
+
+        if (autoCombat == null)
+        {
+            #if DEBUG_COMPONENT_NOT_FOUND
+            Debug.LogError("CombatManager가 설정되지 않았습니다!");
+            #endif
+            enabled = false;
         }
     }
     
@@ -23,6 +54,9 @@ public class DetectionRange : MonoBehaviour
         if (other.CompareTag("Enemy"))
         {
             detectedEnemies.Add(other.gameObject);
+            #if DEBUG_DETECTION
+            Debug.Log($"적 감지됨: {other.gameObject.name}");
+            #endif
             autoCombat.OnEnemyDetected(other.gameObject);
         }
     }
@@ -32,60 +66,35 @@ public class DetectionRange : MonoBehaviour
         if (other.CompareTag("Enemy"))
         {
             detectedEnemies.Remove(other.gameObject);
+            #if DEBUG_DETECTION
+            Debug.Log($"적 감지 해제됨: {other.gameObject.name}");
+            #endif
             autoCombat.OnEnemyLost(other.gameObject);
-            
-            if (autoCombat.Animator != null && detectedEnemies.Count == 0)
-            {
-                autoCombat.Animator.SetBool("Walk", false);
-                autoCombat.Animator.SetBool("Idle", true);
-                
-                if (autoCombat.DrawDebugInfo)
-                {
-                    Debug.Log("[DetectionRange] 모든 적이 감지 범위를 벗어남 - Idle 상태로 전환");
-                }
-            }
         }
     }
     
     public void ValidateDetectedEnemies()
     {
-        var validEnemies = new HashSet<GameObject>();
         var invalidEnemies = new List<GameObject>();
         
-        // 먼저 유효한 적들을 찾음
-        Collider[] colliders = Physics.OverlapSphere(transform.position, detectionRadius, enemyLayer);
-        foreach (Collider col in colliders)
-        {
-            if (col.CompareTag("Enemy"))
-            {
-                validEnemies.Add(col.gameObject);
-            }
-        }
-        
-        // 유효하지 않은 적들을 찾음
         foreach (var enemy in detectedEnemies)
         {
-            if (!validEnemies.Contains(enemy))
+            if (enemy == null || !enemy.activeInHierarchy)
             {
                 invalidEnemies.Add(enemy);
+                #if DEBUG_TARGET_MANAGEMENT
+                Debug.Log($"유효하지 않은 적 감지됨: {enemy?.name ?? "null"}");
+                #endif
             }
         }
         
-        // 유효하지 않은 적들 제거
         foreach (var enemy in invalidEnemies)
         {
             detectedEnemies.Remove(enemy);
+            #if DEBUG_TARGET_MANAGEMENT
+            Debug.Log($"유효하지 않은 적 제거됨: {enemy?.name ?? "null"}");
+            #endif
             autoCombat.OnEnemyLost(enemy);
-        }
-        
-        // 새로운 적들 추가
-        foreach (var enemy in validEnemies)
-        {
-            if (!detectedEnemies.Contains(enemy))
-            {
-                detectedEnemies.Add(enemy);
-                autoCombat.OnEnemyDetected(enemy);
-            }
         }
     }
     
