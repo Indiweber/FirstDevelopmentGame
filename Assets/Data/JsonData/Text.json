@@ -1,0 +1,25 @@
+{
+  "Stat": [
+    {
+      "Id": "1",
+      "TextNameKey": "text_key_stat_attack_name",
+      "KR": "공격력",
+      "EN": "Damage",
+      "JP": "損害"
+    },
+    {
+      "Id": "2",
+      "TextNameKey": "text_key_stat_health_name",
+      "KR": "체력",
+      "EN": "Health",
+      "JP": "筋力"
+    },
+    {
+      "Id": "3",
+      "TextNameKey": "text_key_stat_defence_name",
+      "KR": "방어력",
+      "EN": "Defence",
+      "JP": "鎧"
+    }
+  ]
+}

@@ -56,21 +56,13 @@ namespace Enemy
         }
 
         // 적 AI 설정
-        public const float DetectionRadius = 10f;     // 플레이어 감지 범위
+        public const float DetectionRadius = 10f;     // 적 감지 범위 ( 플레이어를 감지 )
         public const float AttackRadius = 3f;         // 근거리 공격 범위
-        public const float FleeThreshold = 0.3f;      // 도망 체력 임계값 (30%)
-        public const float PatrolWaitTime = 2f;       // 순찰 지점 도착 후 대기 시간
-        public const float PatrolRadius = 10f;        // 순찰 반경
-        public const int MaxPatrolPoints = 5;         // 최대 순찰 지점 수
-        public const float MinPatrolPointDistance = 3f; // 최소 순찰 지점 간 거리
         
         // 적 움직임 설정
-        public const float WalkSpeed = 2f;            // 걷기 속도
-        public const float RunSpeed = 4f;             // 달리기 속도
-        public const float RotationSpeed = 5f;        // 회전 속도
+        public const float WalkSpeed = 1f;            // 걷기 속도
+        public const float RunSpeed = 3f;             // 달리기 속도
         public const float StoppingDistance = 3.5f;   // 정지 거리
-        public const float AccelerationTime = 0.5f;   // 가속 시간
-        public const float DecelerationTime = 0.3f;   // 감속 시간
         public const float AttackCooldown = 1.5f;     // 공격 쿨다운
 
         // 레이캐스트 설정

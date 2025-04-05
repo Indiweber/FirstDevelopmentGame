@@ -1,0 +1,25 @@
+{
+  "Stat": [
+    {
+      "Id": "1",
+      "Category": 1,
+      "StatType": 1,
+      "StatBasicValue": 1,
+      "StatGrowthValue": 1
+    },
+    {
+      "Id": "2",
+      "Category": 1,
+      "StatType": 2,
+      "StatBasicValue": 2,
+      "StatGrowthValue": 2
+    },
+    {
+      "Id": "3",
+      "Category": 1,
+      "StatType": 3,
+      "StatBasicValue": 3,
+      "StatGrowthValue": 3
+    }
+  ]
+}

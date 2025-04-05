@@ -1,3 +1,5 @@
+#region 전처리기 지시문
+
 #define DEBUG_COMPONENT_NOT_FOUND
 #define DEBUG_MOVEMENT_STATE
 #define DEBUG_ATTACK_STATE
@@ -14,16 +16,23 @@
  * DEBUG_TRIGGER_EVENT: 트리거 이벤트 관련 디버그 정보를 출력
  */
 
+#endregion
+
+#region 네임스페이스
+
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
+
+#endregion
 
 namespace Enemy
 {
     [RequireComponent(typeof(NavMeshAgent))]
     public class NewEnemyMovement : MonoBehaviour
     {
+        #region 변수
         // NavMesh 컴포넌트
         private NavMeshAgent navAgent;
         
@@ -49,6 +58,14 @@ namespace Enemy
         
         // 타이머 변수
         private float lastAttackTime = 0f;
+
+        // 고정 Y축 변수
+        private float fixedY;
+
+        // 애니메이터 컴포넌트
+        private Animator animator;
+
+        #endregion
         
         // 초기화
         void Awake()
@@ -78,13 +95,10 @@ namespace Enemy
             // 초기 위치 저장
             fixedY = transform.position.y;
         }
-        
-        private float fixedY;
-        private Animator animator;
 
         void LateUpdate()
         {
-            // Y축과 고정
+            // Y축 고정
             if (transform.position.y != fixedY)
             {
                 transform.position = new Vector3(transform.position.x, fixedY, transform.position.z);
@@ -106,7 +120,7 @@ namespace Enemy
             {
                 navAgent.speed = NewConstants.RunSpeed;
                 navAgent.stoppingDistance = NewConstants.StoppingDistance;
-                navAgent.acceleration = NewConstants.RunSpeed / NewConstants.AccelerationTime;
+                navAgent.acceleration = NewConstants.RunSpeed;
             }
             
             // 초기 업데이트 주기 설정
@@ -129,7 +143,7 @@ namespace Enemy
                 frameCounter = 0;
             }
 
-            // Y축과 Z축 고정
+            // Y축 고정
             if (transform.position.y != fixedY)
             {
                 transform.position = new Vector3(transform.position.x, fixedY, transform.position.z);
@@ -300,44 +314,7 @@ namespace Enemy
         #endregion
         
         #region Helper Methods
-        
-        // 패트롤 포인트 생성
-        private void GeneratePatrolPoints()
-        {
-            patrolPoints = new Vector3[NewConstants.MaxPatrolPoints];
-            
-            Vector3 center = transform.position;
-            
-            for (int i = 0; i < NewConstants.MaxPatrolPoints; i++)
-            {
-                // 랜덤 방향과 거리
-                Vector2 randomCircle = Random.insideUnitCircle * NewConstants.PatrolRadius;
-                Vector3 randomPos = center + new Vector3(randomCircle.x, 0, randomCircle.y);
-                
-                // NavMesh 내에서 유효한 위치 찾기
-                NavMeshHit hit;
-                if (NavMesh.SamplePosition(randomPos, out hit, NewConstants.PatrolRadius, NavMesh.AllAreas))
-                {
-                    patrolPoints[i] = hit.position;
-                }
-                else
-                {
-                    patrolPoints[i] = center;
-                }
-            }
-        }
-        
-        // 다음 패트롤 포인트로 이동
-        private void SetDestinationToNextPatrolPoint()
-        {
-            if (patrolPoints.Length == 0) return;
-            
-            navAgent.SetDestination(patrolPoints[currentPatrolIndex]);
-            
-            // 다음 인덱스로 이동
-            currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Length;
-        }
-        
+
         // 타겟 방향으로 2D 회전 (좌/우만)
         private void LookAtTarget(Vector3 target)
         {
@@ -441,21 +418,6 @@ namespace Enemy
             Gizmos.color = Color.red;
             Gizmos.DrawWireSphere(transform.position, NewConstants.AttackRadius);
             
-            // 패트롤 포인트 표시
-            if (patrolPoints != null)
-            {
-                Gizmos.color = Color.blue;
-                foreach (Vector3 point in patrolPoints)
-                {
-                    Gizmos.DrawSphere(point, 0.3f);
-                }
-                
-                // 패트롤 경로 연결
-                for (int i = 0; i < patrolPoints.Length; i++)
-                {
-                    Gizmos.DrawLine(patrolPoints[i], patrolPoints[(i + 1) % patrolPoints.Length]);
-                }
-            }
         }
     }
 }
